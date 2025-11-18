@@ -275,37 +275,44 @@
 	public async Task OnPan(double deltaX, double deltaY)
 	{
 		// Convert pixel delta to complex plane delta
-		// Negative because moving mouse right should move view left
+		// Account for aspect ratio in the X direction
+		var aspect = (double)canvasWidth / canvasHeight;
 		var scale = 4.0 / State.ViewPort.Zoom;
-		var deltaReal = -(deltaX / canvasWidth) * scale;
+		
+		// Negative because moving mouse right should move view left
+		// Apply aspect ratio correction to X movement
+		var deltaReal = -(deltaX / canvasWidth) * scale * aspect;
 		var deltaImag = -(deltaY / canvasHeight) * scale;
 		
 		State.ViewPort.CenterX += deltaReal;
 		State.ViewPort.CenterY += deltaImag;
 		
 		await RenderCurrentFractal();
-		UpdateUrl(); // This was missing!
+		UpdateUrl();
 	}
 
 	[JSInvokable]
 	public async Task OnZoom(double zoomDelta, double normalizedX, double normalizedY)
 	{
+		// Calculate aspect ratio
+		var aspect = (double)canvasWidth / canvasHeight;
+		
 		// Calculate the point in complex plane where zoom is centered
+		// Apply aspect ratio correction to X coordinate
 		var scale = 4.0 / State.ViewPort.Zoom;
-		var pointReal = State.ViewPort.CenterX + (normalizedX - 0.5) * scale;
+		var pointReal = State.ViewPort.CenterX + (normalizedX - 0.5) * scale * aspect;
 		var pointImag = State.ViewPort.CenterY + (normalizedY - 0.5) * scale;
 		
 		// Apply zoom
 		State.ViewPort.Zoom *= zoomDelta;
 		
 		// Limit zoom range to what f32 can reasonably handle in shaders
-		// f32 has ~7 decimal digits of precision, so we limit to 1e7 to be safe
 		// For deeper zooms, we rely on double-double arithmetic
 		State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e10));
 		
 		// Adjust center to keep the zoom point fixed
 		var newScale = 4.0 / State.ViewPort.Zoom;
-		State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale;
+		State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale * aspect;
 		State.ViewPort.CenterY = pointImag - (normalizedY - 0.5) * newScale;
 		
 		await RenderCurrentFractal();

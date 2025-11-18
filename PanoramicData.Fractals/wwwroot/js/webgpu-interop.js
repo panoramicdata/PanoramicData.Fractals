@@ -27,17 +27,14 @@ export function isWebGPUSupported() {
     return supported;
 }
 
-// Get window dimensions with 1:1 aspect ratio (square canvas)
+// Get fullscreen window dimensions
 export function getCanvasSize() {
-    const containerWidth = window.innerWidth;
-    const containerHeight = window.innerHeight;
-
-    // Use the smaller dimension to maintain 1:1 aspect ratio
-    const size = Math.min(containerWidth, containerHeight);
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     return {
-        width: size,
-        height: size
+        width: width,
+        height: height
     };
 }
 

@@ -60,13 +60,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
+    // Calculate aspect ratio
+    let aspect = f32(params.width) / f32(params.height);
+    
     // Map pixel to complex plane using double-double precision
+    // Scale by 4.0 / zoom to get the size of the complex plane view
     let scale_dd = div_dd(4.0, 0.0, params.zoom, 0.0);
     
+    // Calculate normalized pixel coordinates (-0.5 to 0.5)
     let pixel_x = (f32(x) / f32(params.width) - 0.5);
     let pixel_y = (f32(y) / f32(params.height) - 0.5);
     
-    let pixel_offset_x_dd = mul_dd(pixel_x, 0.0, scale_dd.x, scale_dd.y);
+    // Apply aspect ratio correction to X coordinate
+    let pixel_x_corrected = pixel_x * aspect;
+    
+    // Apply scale with double-double precision
+    let pixel_offset_x_dd = mul_dd(pixel_x_corrected, 0.0, scale_dd.x, scale_dd.y);
     let pixel_offset_y_dd = mul_dd(pixel_y, 0.0, scale_dd.x, scale_dd.y);
     
     let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x_dd.x, pixel_offset_x_dd.y);
@@ -127,12 +136,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
-    let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
+    let aspect = f32(params.width) / f32(params.height);
+    let scale_dd = div_dd(4.0, 0.0, params.zoom, 0.0);
     
-    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x, 0.0);
-    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y, 0.0);
+    let pixel_x = (f32(x) / f32(params.width) - 0.5) * aspect;
+    let pixel_y = (f32(y) / f32(params.height) - 0.5);
+    
+    let pixel_offset_x_dd = mul_dd(pixel_x, 0.0, scale_dd.x, scale_dd.y);
+    let pixel_offset_y_dd = mul_dd(pixel_y, 0.0, scale_dd.x, scale_dd.y);
+    
+    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x_dd.x, pixel_offset_x_dd.y);
+    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y_dd.x, pixel_offset_y_dd.y);
     
     var zr_dd = to_dd(0.0);
     var zi_dd = to_dd(0.0);
@@ -185,12 +199,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
-    let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
+    let aspect = f32(params.width) / f32(params.height);
+    let scale_dd = div_dd(4.0, 0.0, params.zoom, 0.0);
     
-    var zr_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x, 0.0);
-    var zi_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y, 0.0);
+    let pixel_x = (f32(x) / f32(params.width) - 0.5) * aspect;
+    let pixel_y = (f32(y) / f32(params.height) - 0.5);
+    
+    let pixel_offset_x_dd = mul_dd(pixel_x, 0.0, scale_dd.x, scale_dd.y);
+    let pixel_offset_y_dd = mul_dd(pixel_y, 0.0, scale_dd.x, scale_dd.y);
+    
+    var zr_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x_dd.x, pixel_offset_x_dd.y);
+    var zi_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y_dd.x, pixel_offset_y_dd.y);
     
     let c_real = -0.4;
     let c_imag = 0.6;
@@ -243,12 +262,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
-    let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
+    let aspect = f32(params.width) / f32(params.height);
+    let scale_dd = div_dd(4.0, 0.0, params.zoom, 0.0);
     
-    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x, 0.0);
-    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y, 0.0);
+    let pixel_x = (f32(x) / f32(params.width) - 0.5) * aspect;
+    let pixel_y = (f32(y) / f32(params.height) - 0.5);
+    
+    let pixel_offset_x_dd = mul_dd(pixel_x, 0.0, scale_dd.x, scale_dd.y);
+    let pixel_offset_y_dd = mul_dd(pixel_y, 0.0, scale_dd.x, scale_dd.y);
+    
+    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x_dd.x, pixel_offset_x_dd.y);
+    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y_dd.x, pixel_offset_y_dd.y);
     
     var zr_dd = to_dd(0.0);
     var zi_dd = to_dd(0.0);
@@ -304,8 +328,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
+    let aspect = f32(params.width) / f32(params.height);
     let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
+    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale * aspect;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
     
     var zr = params.centerX_hi + pixel_offset_x;
@@ -375,8 +400,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
+    let aspect = f32(params.width) / f32(params.height);
     let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
+    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale * aspect;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
     
     let cr = params.centerX_hi + pixel_offset_x;
@@ -439,8 +465,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
+    let aspect = f32(params.width) / f32(params.height);
     let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
+    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale * aspect;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
     
     let px = params.centerX_hi + pixel_offset_x;

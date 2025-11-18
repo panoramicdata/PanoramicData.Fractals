@@ -367,7 +367,7 @@
 
 	private async Task UpdateCanvasSize()
 	{
-		// Get square canvas dimensions (1:1 aspect ratio)
+		// Get fullscreen canvas dimensions
 		var (width, height) = await WebGPU.GetCanvasSizeAsync();
 		
 		canvasWidth = width;

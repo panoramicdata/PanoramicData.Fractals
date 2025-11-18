@@ -16,13 +16,13 @@
 	
 	<!-- Collapsible Control Panel (Top Right) -->
 	<div class="control-panel @(isControlsExpanded ? "expanded" : "collapsed")">
-		<button class="panel-toggle" @onclick="ToggleControls">
-			<span class="toggle-icon">@(isControlsExpanded ? "×" : "☰")</span>
-		</button>
-		
 		@if (isControlsExpanded)
 		{
 			<div class="panel-content">
+				<button class="panel-toggle" @onclick="ToggleControls" title="Collapse controls">
+					<span class="toggle-icon">×</span>
+				</button>
+				
 				<div class="control-group">
 					<label for="fractal-select">Fractal Type</label>
 					<select id="fractal-select" @bind="selectedFractalType" @bind:after="OnFractalTypeChanged">
@@ -50,17 +50,14 @@
 				</div>
 			</div>
 		}
+		else
+		{
+			<button class="panel-toggle collapsed-toggle" @onclick="ToggleControls" title="Expand controls">
+				<span class="toggle-icon">☰</span>
+			</button>
+		}
 	</div>
 	
-	<!-- FPS Counter -->
-	@if (showFPS)
-	{
-		<div class="fps-counter">
-			<div class="fps-value">@currentFPS FPS</div>
-			<div class="fps-label">Performance</div>
-		</div>
-	}
-
 	@if (!webGPUSupported)
 	{
 		<div class="webgpu-error">
@@ -92,12 +89,6 @@
 	private bool suppressUrlUpdate = false;
 	private bool isControlsExpanded = true; // Default to expanded
 	
-	// FPS tracking
-	private bool showFPS = true;
-	private int currentFPS = 0;
-	private DateTime lastFrameTime = DateTime.UtcNow;
-	private Queue<double> frameTimes = new(60);
-
 	protected override void OnInitialized()
 	{
 		// Load settings from URL parameters
@@ -353,26 +344,6 @@
 		isControlsExpanded = !isControlsExpanded;
 	}
 
-	private void UpdateFPS()
-	{
-		var now = DateTime.UtcNow;
-		var frameTime = (now - lastFrameTime).TotalMilliseconds;
-		lastFrameTime = now;
-		
-		frameTimes.Enqueue(frameTime);
-		if (frameTimes.Count > 60)
-		{
-			frameTimes.Dequeue();
-		}
-		
-		if (frameTimes.Count > 0)
-		{
-			var avgFrameTime = frameTimes.Average();
-			currentFPS = avgFrameTime > 0 ? (int)(1000.0 / avgFrameTime) : 0;
-			StateHasChanged();
-		}
-	}
-
 	private void ResetView()
 	{
 		State.ViewPort.CenterX = 0.0;
@@ -430,9 +401,6 @@
 				State.MaxIterations,
 				paletteData
 			);
-			
-			// Update FPS counter
-			UpdateFPS();
 		}
 		finally
 		{

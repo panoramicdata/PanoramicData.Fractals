@@ -20,6 +20,14 @@ fn mul_dd(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> vec2<f32> {
     return vec2<f32>(z, e - (z - p) + a_lo * b_lo);
 }
 
+// Emulated double precision division
+fn div_dd(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> vec2<f32> {
+    var q1 = a_hi / b_hi;
+    var r = add_dd(a_hi, a_lo, -b_hi * q1, -b_lo * q1);
+    var q2 = r.x / b_hi;
+    return vec2<f32>(q1 + q2, q2 - ((q1 + q2) - q1));
+}
+
 // Convert f32 to double-double representation
 fn to_dd(a: f32) -> vec2<f32> {
     return vec2<f32>(a, 0.0);
@@ -52,13 +60,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    // Map pixel to complex plane (square aspect ratio)
-    let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
-    let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
+    // Map pixel to complex plane using double-double precision
+    let scale_dd = div_dd(4.0, 0.0, params.zoom, 0.0);
     
-    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x, 0.0);
-    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y, 0.0);
+    let pixel_x = (f32(x) / f32(params.width) - 0.5);
+    let pixel_y = (f32(y) / f32(params.height) - 0.5);
+    
+    let pixel_offset_x_dd = mul_dd(pixel_x, 0.0, scale_dd.x, scale_dd.y);
+    let pixel_offset_y_dd = mul_dd(pixel_y, 0.0, scale_dd.x, scale_dd.y);
+    
+    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x_dd.x, pixel_offset_x_dd.y);
+    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y_dd.x, pixel_offset_y_dd.y);
     
     var zr_dd = to_dd(0.0);
     var zi_dd = to_dd(0.0);

@@ -186,7 +186,7 @@
 		if (queryParams.TryGetValue("zoom", out var zoomValue) &&
 			double.TryParse(zoomValue, out var zoom))
 		{
-			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(zoom, 1e15));
+			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(zoom, 1e10));
 		}
 
 		// Load max iterations
@@ -298,8 +298,10 @@
 		// Apply zoom
 		State.ViewPort.Zoom *= zoomDelta;
 		
-		// Limit zoom range
-		State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e15));
+		// Limit zoom range to what f32 can reasonably handle in shaders
+		// f32 has ~7 decimal digits of precision, so we limit to 1e7 to be safe
+		// For deeper zooms, we rely on double-double arithmetic
+		State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e10));
 		
 		// Adjust center to keep the zoom point fixed
 		var newScale = 4.0 / State.ViewPort.Zoom;

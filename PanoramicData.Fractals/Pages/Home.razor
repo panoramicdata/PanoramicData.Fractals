@@ -25,6 +25,16 @@
 				}
 			</select>
 		</div>
+		
+		<div class="control-group">
+			<label for="palette-select">Color Palette</label>
+			<select id="palette-select" @bind="selectedPaletteName" @bind:after="OnPaletteChanged">
+				@foreach (var palette in ColorPalette.AllPalettes)
+				{
+					<option value="@palette.Name">@palette.Name</option>
+				}
+			</select>
+		</div>
 	</div>
 	
 	@if (!webGPUSupported)
@@ -54,6 +64,7 @@
 	private DotNetObjectReference<Home>? dotNetRef;
 	private IJSObjectReference? windowEventsModule;
 	private FractalType selectedFractalType = FractalType.Mandelbrot;
+	private string selectedPaletteName = "Classic";
 	private bool suppressUrlUpdate = false;
 
 	protected override void OnInitialized()
@@ -112,6 +123,19 @@
 		{
 			selectedFractalType = fractalType;
 			State.CurrentFractal = fractalType;
+		}
+
+		// Load palette
+		if (queryParams.TryGetValue("palette", out var paletteValue) &&
+			!string.IsNullOrEmpty(paletteValue))
+		{
+			var palette = ColorPalette.AllPalettes.FirstOrDefault(p => 
+				p.Name.Equals(paletteValue, StringComparison.OrdinalIgnoreCase));
+			if (palette != null)
+			{
+				selectedPaletteName = palette.Name;
+				State.CurrentPalette = palette;
+			}
 		}
 
 		// Load center coordinates (supports complex notation like "0.1+0.3i" or separate x,y)
@@ -195,6 +219,7 @@
 		var queryParams = new Dictionary<string, string?>
 		{
 			["fractal"] = State.CurrentFractal.ToString().ToLowerInvariant(),
+			["palette"] = selectedPaletteName.ToLowerInvariant().Replace(" ", ""),
 			["c"] = FormatComplex(State.ViewPort.CenterX, State.ViewPort.CenterY),
 			["zoom"] = State.ViewPort.Zoom.ToString("G6"),
 			["iter"] = State.MaxIterations.ToString()
@@ -272,6 +297,17 @@
 		
 		await RenderCurrentFractal();
 		UpdateUrl();
+	}
+
+	private async Task OnPaletteChanged()
+	{
+		var palette = ColorPalette.AllPalettes.FirstOrDefault(p => p.Name == selectedPaletteName);
+		if (palette != null)
+		{
+			State.CurrentPalette = palette;
+			await RenderCurrentFractal();
+			UpdateUrl();
+		}
 	}
 
 	private void ResetView()

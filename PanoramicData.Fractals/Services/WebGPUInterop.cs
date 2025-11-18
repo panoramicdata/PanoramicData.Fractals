@@ -151,7 +151,7 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
 		GC.SuppressFinalize(this);
 	}
-	private class CanvasSize
+	private sealed class CanvasSize
 	{
 		public int Width { get; set; }
 		public int Height { get; set; }

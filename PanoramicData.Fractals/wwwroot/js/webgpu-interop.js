@@ -1,9 +1,12 @@
+import { fractalShaders } from './fractal-shaders.js';
+
 // WebGPU state
 let device = null;
 let context = null;
 let canvas = null;
 let renderPipeline = null;
-let computePipeline = null;
+let computePipelines = {}; // Store multiple pipelines for different fractals
+let currentFractalType = 'mandelbrot';
 let outputTexture = null;
 let uniformBuffer = null;
 let paletteBuffer = null;
@@ -225,121 +228,6 @@ export async function initialize(canvasId) {
     }
 }
 
-// Mandelbrot compute shader with emulated double precision (WGSL)
-const mandelbrotShader = `
-struct FractalParams {
-    width: u32,
-    height: u32,
-    centerX_hi: f32,  // High part of double
-    centerX_lo: f32,  // Low part of double
-    centerY_hi: f32,
-    centerY_lo: f32,
-    zoom: f32,
-    maxIterations: u32,
-}
-
-@group(0) @binding(0) var outputTexture: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(1) var<uniform> params: FractalParams;
-@group(0) @binding(2) var<storage, read> palette: array<vec4<f32>>;
-
-// Emulated double precision addition
-fn add_dd(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> vec2<f32> {
-    var s = a_hi + b_hi;
-    var v = s - a_hi;
-    var e = (a_hi - (s - v)) + (b_hi - v);
-    var t = e + a_lo + b_lo;
-    var z = s + t;
-    return vec2<f32>(z, t - (z - s));
-}
-
-// Emulated double precision multiplication
-fn mul_dd(a_hi: f32, a_lo: f32, b_hi: f32, b_lo: f32) -> vec2<f32> {
-    var p = a_hi * b_hi;
-    var e = fma(a_hi, b_hi, -p);
-    e = fma(a_hi, b_lo, e);
-    e = fma(a_lo, b_hi, e);
-    var z = p + e;
-    return vec2<f32>(z, e - (z - p) + a_lo * b_lo);
-}
-
-// Convert f32 to double-double representation
-fn to_dd(a: f32) -> vec2<f32> {
-    return vec2<f32>(a, 0.0);
-}
-
-@compute @workgroup_size(8, 8)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let x = global_id.x;
-    let y = global_id.y;
-    
-    if (x >= params.width || y >= params.height) {
-        return;
-    }
-    
-    // Map pixel to complex plane using double-double precision
-    let scale = 4.0 / params.zoom;
-    let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
-    let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
-    
-    // Add offset to center coordinates using double-double arithmetic
-    let real_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x, 0.0);
-    let imag_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y, 0.0);
-    
-    // Mandelbrot iteration with double-double precision
-    var zr_dd = to_dd(0.0);
-    var zi_dd = to_dd(0.0);
-    var iter = 0u;
-    
-    for (var i = 0u; i < params.maxIterations; i = i + 1u) {
-        // Calculate zr^2 and zi^2
-        let zr2_dd = mul_dd(zr_dd.x, zr_dd.y, zr_dd.x, zr_dd.y);
-        let zi2_dd = mul_dd(zi_dd.x, zi_dd.y, zi_dd.x, zi_dd.y);
-        
-        // Check escape condition (magnitude squared > 4)
-        let mag_sq = zr2_dd.x + zi2_dd.x;
-        if (mag_sq > 4.0) {
-            iter = i;
-            break;
-        }
-        
-        // Calculate 2 * zr * zi
-        let two_zr_dd = vec2<f32>(zr_dd.x * 2.0, zr_dd.y * 2.0);
-        let zr_zi_dd = mul_dd(two_zr_dd.x, two_zr_dd.y, zi_dd.x, zi_dd.y);
-        
-        // Calculate new zi = 2*zr*zi + imag
-        let new_zi_dd = add_dd(zr_zi_dd.x, zr_zi_dd.y, imag_dd.x, imag_dd.y);
-        
-        // Calculate new zr = zr^2 - zi^2 + real
-        let zr2_minus_zi2_dd = add_dd(zr2_dd.x, zr2_dd.y, -zi2_dd.x, -zi2_dd.y);
-        let new_zr_dd = add_dd(zr2_minus_zi2_dd.x, zr2_minus_zi2_dd.y, real_dd.x, real_dd.y);
-        
-        zr_dd = new_zr_dd;
-        zi_dd = new_zi_dd;
-        
-        iter = i;
-    }
-    
-    // Color based on iteration count with smooth coloring
-    var color: vec4<f32>;
-    if (iter >= params.maxIterations - 1u) {
-        color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    } else {
-        // Smooth coloring using continuous escape time
-        let zr = zr_dd.x;
-        let zi = zi_dd.x;
-        let mag_sq = zr * zr + zi * zi;
-        let smooth_iter = f32(iter) + 1.0 - log2(log2(mag_sq) / 2.0);
-        
-        let paletteSize = arrayLength(&palette);
-        let t = smooth_iter / f32(params.maxIterations);
-        let paletteIndex = u32(clamp(t * f32(paletteSize - 1u), 0.0, f32(paletteSize - 1u)));
-        color = palette[paletteIndex];
-    }
-    
-    textureStore(outputTexture, vec2<i32>(i32(x), i32(y)), color);
-}
-`;
-
 // Fullscreen quad vertex shader
 const vertexShader = `
 struct VertexOutput {
@@ -402,19 +290,27 @@ async function createRenderPipeline() {
     });
 }
 
-// Create compute pipeline for fractals
-async function createComputePipeline() {
+// Create compute pipeline for a specific fractal type
+async function createComputePipeline(fractalType) {
+    const shaderCode = fractalShaders[fractalType];
+    if (!shaderCode) {
+        console.error(`Unknown fractal type: ${fractalType}`);
+        return null;
+    }
+
     const shaderModule = device.createShaderModule({
-        code: mandelbrotShader,
+        code: shaderCode,
     });
 
-    computePipeline = device.createComputePipeline({
+    const pipeline = device.createComputePipeline({
         layout: 'auto',
         compute: {
             module: shaderModule,
             entryPoint: 'main',
         },
     });
+
+    return pipeline;
 }
 
 // Render fractal
@@ -439,10 +335,19 @@ export async function renderFractal(
         canvas.height = height;
     }
 
-    // Create compute pipeline if needed
-    if (!computePipeline) {
-        await createComputePipeline();
+    // Create or get compute pipeline for this fractal type
+    if (!computePipelines[fractalType]) {
+        console.log(`Creating pipeline for ${fractalType}...`);
+        computePipelines[fractalType] = await createComputePipeline(fractalType);
     }
+
+    const computePipeline = computePipelines[fractalType];
+    if (!computePipeline) {
+        console.error(`Failed to create pipeline for ${fractalType}`);
+        return;
+    }
+
+    currentFractalType = fractalType;
 
     // Create or recreate output texture if size changed
     if (!outputTexture || outputTexture.width !== width || outputTexture.height !== height) {
@@ -457,25 +362,24 @@ export async function renderFractal(
     }
 
     // Split double precision values into high/low parts for better precision
-    // This implements Dekker's split for double-double arithmetic
     function splitDouble(value) {
-        const hi = Math.fround(value); // Round to f32
-        const lo = value - hi;          // Remainder
+        const hi = Math.fround(value);
+        const lo = value - hi;
         return { hi, lo };
     }
 
     const centerXSplit = splitDouble(centerX);
     const centerYSplit = splitDouble(centerY);
 
-    // Create uniform buffer for parameters (now 40 bytes with double-double coords)
+    // Create uniform buffer for parameters
     const uniformData = new ArrayBuffer(48);
     const uniformView = new DataView(uniformData);
     uniformView.setUint32(0, width, true);
     uniformView.setUint32(4, height, true);
-    uniformView.setFloat32(8, centerXSplit.hi, true);   // centerX_hi
-    uniformView.setFloat32(12, centerXSplit.lo, true);  // centerX_lo
-    uniformView.setFloat32(16, centerYSplit.hi, true);  // centerY_hi
-    uniformView.setFloat32(20, centerYSplit.lo, true);  // centerY_lo
+    uniformView.setFloat32(8, centerXSplit.hi, true);
+    uniformView.setFloat32(12, centerXSplit.lo, true);
+    uniformView.setFloat32(16, centerYSplit.hi, true);
+    uniformView.setFloat32(20, centerYSplit.lo, true);
     uniformView.setFloat32(24, zoom, true);
     uniformView.setUint32(28, maxIterations, true);
 
@@ -496,7 +400,6 @@ export async function renderFractal(
         size: paletteData.length * 4,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
     });
-    // Convert to Float32Array if it's not already
     const paletteFloat32 = paletteData instanceof Float32Array ? paletteData : new Float32Array(paletteData);
     device.queue.writeBuffer(paletteBuffer, 0, paletteFloat32);
 
@@ -580,6 +483,10 @@ export function cleanup() {
         paletteBuffer.destroy();
         paletteBuffer = null;
     }
+    
+    // Clean up all compute pipelines
+    computePipelines = {};
+    
     device = null;
     context = null;
     canvas = null;

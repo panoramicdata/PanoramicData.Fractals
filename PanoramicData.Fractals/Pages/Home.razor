@@ -1,9 +1,12 @@
 ﻿@page "/"
 @using PanoramicData.Fractals.Models
 @using PanoramicData.Fractals.Services
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.WebUtilities
 @inject WebGPUInterop WebGPU
 @inject FractalState State
 @inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
 @implements IAsyncDisposable
 
 <PageTitle>Fractal Explorer</PageTitle>
@@ -51,6 +54,13 @@
 	private DotNetObjectReference<Home>? dotNetRef;
 	private IJSObjectReference? windowEventsModule;
 	private FractalType selectedFractalType = FractalType.Mandelbrot;
+	private bool suppressUrlUpdate = false;
+
+	protected override void OnInitialized()
+	{
+		// Load settings from URL parameters
+		LoadFromUrlParameters();
+	}
 
 	protected override async Task OnAfterRenderAsync(bool firstRender)
 	{
@@ -90,6 +100,118 @@
 		}
 	}
 
+	private void LoadFromUrlParameters()
+	{
+		var uri = new Uri(Navigation.Uri);
+		var queryParams = QueryHelpers.ParseQuery(uri.Query);
+
+		// Load fractal type
+		if (queryParams.TryGetValue("fractal", out var fractalValue) &&
+			!string.IsNullOrEmpty(fractalValue) &&
+			Enum.TryParse<FractalType>(fractalValue, true, out var fractalType))
+		{
+			selectedFractalType = fractalType;
+			State.CurrentFractal = fractalType;
+		}
+
+		// Load center coordinates (supports complex notation like "0.1+0.3i" or separate x,y)
+		if (queryParams.TryGetValue("c", out var centerValue) && !string.IsNullOrEmpty(centerValue))
+		{
+			var (real, imag) = ParseComplex(centerValue);
+			State.ViewPort.CenterX = real;
+			State.ViewPort.CenterY = imag;
+		}
+		else
+		{
+			if (queryParams.TryGetValue("x", out var xValue) &&
+				double.TryParse(xValue, out var x))
+			{
+				State.ViewPort.CenterX = x;
+			}
+
+			if (queryParams.TryGetValue("y", out var yValue) &&
+				double.TryParse(yValue, out var y))
+			{
+				State.ViewPort.CenterY = y;
+			}
+		}
+
+		// Load zoom level
+		if (queryParams.TryGetValue("zoom", out var zoomValue) &&
+			double.TryParse(zoomValue, out var zoom))
+		{
+			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(zoom, 1e15));
+		}
+
+		// Load max iterations
+		if (queryParams.TryGetValue("iter", out var iterValue) &&
+			int.TryParse(iterValue, out var iterations))
+		{
+			State.MaxIterations = Math.Max(10, Math.Min(iterations, 10000));
+		}
+	}
+
+	private (double Real, double Imag) ParseComplex(string complexStr)
+	{
+		// Handle formats like: "0.1+0.3i", "0.1-0.3i", "-0.4+0.6i"
+		complexStr = complexStr.Replace(" ", "").Replace("i", "").ToLower();
+		
+		var real = 0.0;
+		var imag = 0.0;
+
+		// Find the last + or - that's not at the beginning
+		var lastPlusIndex = complexStr.LastIndexOf('+');
+		var lastMinusIndex = complexStr.LastIndexOf('-');
+		
+		// Skip the first character (could be negative sign for real part)
+		if (lastMinusIndex == 0)
+		{
+			lastMinusIndex = complexStr.LastIndexOf('-', 1);
+		}
+
+		var splitIndex = Math.Max(lastPlusIndex, lastMinusIndex);
+
+		if (splitIndex > 0)
+		{
+			if (double.TryParse(complexStr[..splitIndex], out real))
+			{
+				var imagPart = complexStr[splitIndex..];
+				double.TryParse(imagPart, out imag);
+			}
+		}
+		else if (double.TryParse(complexStr, out real))
+		{
+			// Only real part provided
+			imag = 0.0;
+		}
+
+		return (real, imag);
+	}
+
+	private void UpdateUrl()
+	{
+		if (suppressUrlUpdate) return;
+
+		var queryParams = new Dictionary<string, string?>
+		{
+			["fractal"] = State.CurrentFractal.ToString().ToLowerInvariant(),
+			["c"] = FormatComplex(State.ViewPort.CenterX, State.ViewPort.CenterY),
+			["zoom"] = State.ViewPort.Zoom.ToString("G6"),
+			["iter"] = State.MaxIterations.ToString()
+		};
+
+		var newUri = QueryHelpers.AddQueryString("/", queryParams);
+		Navigation.NavigateTo(newUri, replace: true);
+	}
+
+	private string FormatComplex(double real, double imag)
+	{
+		var realStr = real.ToString("G6");
+		var imagStr = Math.Abs(imag).ToString("G6");
+		var sign = imag >= 0 ? "+" : "-";
+		return $"{realStr}{sign}{imagStr}i";
+	}
+
 	[JSInvokable]
 	public async Task OnWindowResized()
 	{
@@ -115,6 +237,7 @@
 		State.ViewPort.CenterY += deltaImag;
 		
 		await RenderCurrentFractal();
+		UpdateUrl();
 	}
 
 	[JSInvokable]
@@ -137,6 +260,7 @@
 		State.ViewPort.CenterY = pointImag - (normalizedY - 0.5) * newScale;
 		
 		await RenderCurrentFractal();
+		UpdateUrl();
 	}
 
 	private async Task OnFractalTypeChanged()
@@ -147,6 +271,7 @@
 		ResetView();
 		
 		await RenderCurrentFractal();
+		UpdateUrl();
 	}
 
 	private void ResetView()
@@ -185,6 +310,7 @@
 	private async void OnStateChanged()
 	{
 		await RenderCurrentFractal();
+		UpdateUrl();
 		StateHasChanged();
 	}
 

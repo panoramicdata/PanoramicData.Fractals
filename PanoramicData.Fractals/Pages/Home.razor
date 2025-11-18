@@ -117,7 +117,7 @@
 		// Load center coordinates (supports complex notation like "0.1+0.3i" or separate x,y)
 		if (queryParams.TryGetValue("c", out var centerValue) && !string.IsNullOrEmpty(centerValue))
 		{
-			var (real, imag) = ParseComplex(centerValue);
+			var (real, imag) = ParseComplex(centerValue!);
 			State.ViewPort.CenterX = real;
 			State.ViewPort.CenterY = imag;
 		}

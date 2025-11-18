@@ -4,28 +4,30 @@
 		<TargetFramework>net10.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
-		<!-- Disable file integrity checking during development -->
-		<BlazorEnableCompression>false</BlazorEnableCompression>
-		<BlazorWebAssemblyLoadAllGlobalizationData>false</BlazorWebAssemblyLoadAllGlobalizationData>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
 		<!-- Disable integrity checking in Debug mode for easier JS development -->
 		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+		<!-- Disable file integrity hashing for JavaScript files during development -->
+		<BlazorCacheBootResources>false</BlazorCacheBootResources>
+		<BlazorEnableCompression>false</BlazorEnableCompression>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-		<!-- Enable warnings as errors in Release builds only -->
-		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 		<!-- Exclude analyzer warnings from being treated as errors -->
 		<EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+		<!-- Enable caching and compression for production -->
+		<BlazorCacheBootResources>true</BlazorCacheBootResources>
+		<BlazorEnableCompression>true</BlazorEnableCompression>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.0" PrivateAssets="all" />
-		<PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="8.0.0" />
+		<PackageReference Include="Microsoft.AspNetCore.WebUtilities" Version="10.0.0" />
 	</ItemGroup>
 
 </Project>

@@ -52,6 +52,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
+    // Map pixel to complex plane (square aspect ratio)
     let scale = 4.0 / params.zoom;
     let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
@@ -126,7 +127,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var iter = 0u;
     
     for (var i = 0u; i < params.maxIterations; i = i + 1u) {
-        // Take absolute values before squaring (Burning Ship modification)
         let abs_zr = abs(zr_dd.x);
         let abs_zi = abs(zi_dd.x);
         
@@ -177,11 +177,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
     
-    // For Julia set, the pixel position is z, and c is constant
     var zr_dd = add_dd(params.centerX_hi, params.centerX_lo, pixel_offset_x, 0.0);
     var zi_dd = add_dd(params.centerY_hi, params.centerY_lo, pixel_offset_y, 0.0);
     
-    // Julia set constant (classic: c = -0.4 + 0.6i)
     let c_real = -0.4;
     let c_imag = 0.6;
     
@@ -429,8 +427,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
     
-    // For Barnsley Fern, we'll create a histogram-based rendering
-    // This is a simplified version - just showing a pattern
     let scale = 4.0 / params.zoom;
     let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;

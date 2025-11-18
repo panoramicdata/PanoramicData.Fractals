@@ -36,9 +36,28 @@ jobs:
     - name: Publish
       run: dotnet publish PanoramicData.Fractals/PanoramicData.Fractals.csproj -c Release -o publish
 
-    - name: Change base href in index.html
+    - name: Check for CNAME file
+      id: check_cname
+      run: |
+        if [ -f "publish/wwwroot/CNAME" ]; then
+          echo "has_custom_domain=true" >> $GITHUB_OUTPUT
+          echo "Custom domain detected"
+        else
+          echo "has_custom_domain=false" >> $GITHUB_OUTPUT
+          echo "No custom domain"
+        fi
+
+    - name: Change base href for custom domain
+      if: steps.check_cname.outputs.has_custom_domain == 'true'
+      run: |
+        sed -i 's/<base href="\/" \/>/<base href="\/" \/>/g' publish/wwwroot/index.html
+        echo "Base href set to / for custom domain"
+
+    - name: Change base href for GitHub Pages subdirectory
+      if: steps.check_cname.outputs.has_custom_domain == 'false'
       run: |
         sed -i 's/<base href="\/" \/>/<base href="\/PanoramicData.Fractals\/" \/>/g' publish/wwwroot/index.html
+        echo "Base href set to /PanoramicData.Fractals/ for GitHub Pages"
 
     - name: Add .nojekyll file
       run: touch publish/wwwroot/.nojekyll

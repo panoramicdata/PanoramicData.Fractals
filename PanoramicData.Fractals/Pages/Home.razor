@@ -14,33 +14,42 @@
 <div class="fractal-container">
 	<canvas id="fractal-canvas" @ref="canvasRef"></canvas>
 	
-	<!-- Fractal Type Selector -->
-	<div class="fractal-controls">
-		<div class="control-group">
-			<label for="fractal-select">Fractal Type</label>
-			<select id="fractal-select" @bind="selectedFractalType" @bind:after="OnFractalTypeChanged">
-				@foreach (var fractalType in Enum.GetValues<FractalType>())
-				{
-					<option value="@fractalType">@GetFractalDisplayName(fractalType)</option>
-				}
-			</select>
-		</div>
+	<!-- Collapsible Control Panel (Top Right) -->
+	<div class="control-panel @(isControlsExpanded ? "expanded" : "collapsed")">
+		<button class="panel-toggle" @onclick="ToggleControls">
+			<span class="toggle-icon">@(isControlsExpanded ? "×" : "☰")</span>
+		</button>
 		
-		<div class="control-group">
-			<label for="palette-select">Color Palette</label>
-			<select id="palette-select" @bind="selectedPaletteName" @bind:after="OnPaletteChanged">
-				@foreach (var palette in ColorPalette.AllPalettes)
-				{
-					<option value="@palette.Name">@palette.Name</option>
-				}
-			</select>
-		</div>
-		
-		<div class="control-group">
-			<button class="reset-button" @onclick="OnResetView">
-				<span class="reset-icon">↺</span> Reset View
-			</button>
-		</div>
+		@if (isControlsExpanded)
+		{
+			<div class="panel-content">
+				<div class="control-group">
+					<label for="fractal-select">Fractal Type</label>
+					<select id="fractal-select" @bind="selectedFractalType" @bind:after="OnFractalTypeChanged">
+						@foreach (var fractalType in Enum.GetValues<FractalType>())
+						{
+							<option value="@fractalType">@GetFractalDisplayName(fractalType)</option>
+						}
+					</select>
+				</div>
+				
+				<div class="control-group">
+					<label for="palette-select">Color Palette</label>
+					<select id="palette-select" @bind="selectedPaletteName" @bind:after="OnPaletteChanged">
+						@foreach (var palette in ColorPalette.AllPalettes)
+						{
+							<option value="@palette.Name">@palette.Name</option>
+						}
+					</select>
+				</div>
+				
+				<div class="control-group">
+					<button class="reset-button" @onclick="OnResetView">
+						<span class="reset-icon">↺</span> Reset View
+					</button>
+				</div>
+			</div>
+		}
 	</div>
 	
 	<!-- FPS Counter -->
@@ -81,6 +90,7 @@
 	private FractalType selectedFractalType = FractalType.Mandelbrot;
 	private string selectedPaletteName = "Classic";
 	private bool suppressUrlUpdate = false;
+	private bool isControlsExpanded = true; // Default to expanded
 	
 	// FPS tracking
 	private bool showFPS = true;
@@ -283,7 +293,7 @@
 		State.ViewPort.CenterY += deltaImag;
 		
 		await RenderCurrentFractal();
-		UpdateUrl();
+		UpdateUrl(); // This was missing!
 	}
 
 	[JSInvokable]
@@ -336,6 +346,11 @@
 		ResetView();
 		await RenderCurrentFractal();
 		UpdateUrl();
+	}
+
+	private void ToggleControls()
+	{
+		isControlsExpanded = !isControlsExpanded;
 	}
 
 	private void UpdateFPS()

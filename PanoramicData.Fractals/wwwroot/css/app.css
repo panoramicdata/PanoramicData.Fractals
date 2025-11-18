@@ -215,3 +215,125 @@ html, body {
 .fractal-controls .dropdown-item:hover {
     background-color: rgba(255, 255, 255, 0.2);
 }
+
+/* Fractal controls styling - Modern rounded design */
+.fractal-controls {
+	position: absolute;
+	top: 20px;
+	left: 20px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	z-index: 1000;
+	pointer-events: none;
+}
+
+.control-group {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	pointer-events: auto;
+}
+
+.control-group label {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: rgba(255, 255, 255, 0.9);
+	text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+	margin: 0;
+	padding: 0 4px;
+}
+
+.control-group select {
+	min-width: 200px;
+	padding: 10px 16px;
+	font-size: 14px;
+	font-weight: 500;
+	color: #ffffff;
+	background: linear-gradient(135deg, rgba(30, 30, 40, 0.95), rgba(20, 20, 30, 0.95));
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 12px;
+	cursor: pointer;
+	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+	backdrop-filter: blur(10px);
+	-webkit-backdrop-filter: blur(10px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3),
+				0 2px 4px rgba(0, 0, 0, 0.2),
+				inset 0 1px 0 rgba(255, 255, 255, 0.1);
+	appearance: none;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 12px center;
+	padding-right: 36px;
+}
+
+.control-group select:hover {
+	background: linear-gradient(135deg, rgba(40, 40, 50, 0.98), rgba(30, 30, 40, 0.98));
+	border-color: rgba(255, 255, 255, 0.25);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4),
+				0 3px 6px rgba(0, 0, 0, 0.3),
+				inset 0 1px 0 rgba(255, 255, 255, 0.15);
+	transform: translateY(-1px);
+}
+
+.control-group select:focus {
+	outline: none;
+	border-color: rgba(100, 150, 255, 0.6);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4),
+				0 3px 6px rgba(0, 0, 0, 0.3),
+				0 0 0 3px rgba(100, 150, 255, 0.2),
+				inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.control-group select:active {
+	transform: translateY(0);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3),
+				0 1px 3px rgba(0, 0, 0, 0.2),
+				inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.control-group select option {
+	background-color: #1a1a24;
+	color: #ffffff;
+	padding: 8px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+	.fractal-controls {
+		top: 12px;
+		left: 12px;
+		gap: 8px;
+	}
+
+	.control-group select {
+		min-width: 160px;
+		padding: 8px 12px;
+		font-size: 13px;
+		border-radius: 10px;
+	}
+
+	.control-group label {
+		font-size: 10px;
+	}
+}
+
+/* Animation for control appearance */
+@keyframes slideInFromLeft {
+	from {
+		opacity: 0;
+		transform: translateX(-20px);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+.fractal-controls {
+	animation: slideInFromLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}

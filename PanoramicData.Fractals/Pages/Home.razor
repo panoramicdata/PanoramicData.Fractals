@@ -9,236 +9,279 @@
 <PageTitle>Fractal Explorer</PageTitle>
 
 <div class="fractal-container">
-    <canvas id="fractal-canvas" @ref="canvasRef"></canvas>
-
-    @if (!webGPUSupported)
-    {
-        <div class="webgpu-error">
-            <h2>WebGPU Not Supported</h2>
-            <p>Your browser doesn't support WebGPU. Please use Chrome 113+ or Edge 113+ for the best experience.</p>
-        </div>
-    }
-    else if (isInitializing)
-    {
-        <div class="loading-overlay">
-            <div class="spinner-border text-light" role="status">
-                <span class="visually-hidden">Initializing WebGPU...</span>
-            </div>
-            <p class="mt-3 text-light">Initializing WebGPU...</p>
-        </div>
-    }
+	<canvas id="fractal-canvas" @ref="canvasRef"></canvas>
+	
+	<!-- Fractal Type Selector -->
+	<div class="fractal-controls">
+		<div class="control-group">
+			<label for="fractal-select">Fractal Type</label>
+			<select id="fractal-select" @bind="selectedFractalType" @bind:after="OnFractalTypeChanged">
+				@foreach (var fractalType in Enum.GetValues<FractalType>())
+				{
+					<option value="@fractalType">@GetFractalDisplayName(fractalType)</option>
+				}
+			</select>
+		</div>
+	</div>
+	
+	@if (!webGPUSupported)
+	{
+		<div class="webgpu-error">
+			<h2>WebGPU Not Supported</h2>
+			<p>Your browser doesn't support WebGPU. Please use Chrome 113+ or Edge 113+ for the best experience.</p>
+		</div>
+	}
+	else if (isInitializing)
+	{
+		<div class="loading-overlay">
+			<div class="spinner-border text-light" role="status">
+				<span class="visually-hidden">Initializing WebGPU...</span>
+			</div>
+			<p class="mt-3 text-light">Initializing WebGPU...</p>
+		</div>
+	}
 </div>
 
 @code {
-    private ElementReference canvasRef;
-    private bool webGPUSupported = true;
-    private bool isInitializing = true;
-    private int canvasWidth;
-    private int canvasHeight;
-    private DotNetObjectReference<Home>? dotNetRef;
-    private IJSObjectReference? windowEventsModule;
+	private ElementReference canvasRef;
+	private bool webGPUSupported = true;
+	private bool isInitializing = true;
+	private int canvasWidth;
+	private int canvasHeight;
+	private DotNetObjectReference<Home>? dotNetRef;
+	private IJSObjectReference? windowEventsModule;
+	private FractalType selectedFractalType = FractalType.Mandelbrot;
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            // Get window size with 1:1 aspect ratio
-            await UpdateCanvasSize();
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (firstRender)
+		{
+			// Get window size with 1:1 aspect ratio
+			await UpdateCanvasSize();
 
-            // Initialize WebGPU (this will check support internally)
-            var initialized = await WebGPU.InitializeAsync("fractal-canvas");
+			// Initialize WebGPU (this will check support internally)
+			var initialized = await WebGPU.InitializeAsync("fractal-canvas");
+			
+			if (!initialized)
+			{
+				webGPUSupported = false;
+				isInitializing = false;
+				StateHasChanged();
+				return;
+			}
 
-            if (!initialized)
-            {
-                webGPUSupported = false;
-                isInitializing = false;
-                StateHasChanged();
-                return;
-            }
+			// Subscribe to state changes
+			State.OnStateChanged += OnStateChanged;
+			
+			// Set up resize handler
+			dotNetRef = DotNetObjectReference.Create(this);
+			windowEventsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
+				"import", "./js/window-events.js");
+			await windowEventsModule.InvokeVoidAsync("setupResizeHandler", dotNetRef);
+			
+			// Set up pan and zoom interaction
+			await WebGPU.SetupInteractionAsync(dotNetRef);
+			
+			// Render initial fractal
+			await RenderCurrentFractal();
+			
+			isInitializing = false;
+			StateHasChanged();
+		}
+	}
 
-            // Subscribe to state changes
-            State.OnStateChanged += OnStateChanged;
+	[JSInvokable]
+	public async Task OnWindowResized()
+	{
+		// Update canvas size to maintain 1:1 aspect ratio
+		await UpdateCanvasSize();
+		
+		// Re-render fractal with new dimensions
+		await RenderCurrentFractal();
+		
+		StateHasChanged();
+	}
 
-            // Set up resize handler
-            dotNetRef = DotNetObjectReference.Create(this);
-            windowEventsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
-                "import", "./js/window-events.js");
-            await windowEventsModule.InvokeVoidAsync("setupResizeHandler", dotNetRef);
+	[JSInvokable]
+	public async Task OnPan(double deltaX, double deltaY)
+	{
+		// Convert pixel delta to complex plane delta
+		// Negative because moving mouse right should move view left
+		var scale = 4.0 / State.ViewPort.Zoom;
+		var deltaReal = -(deltaX / canvasWidth) * scale;
+		var deltaImag = -(deltaY / canvasHeight) * scale;
+		
+		State.ViewPort.CenterX += deltaReal;
+		State.ViewPort.CenterY += deltaImag;
+		
+		await RenderCurrentFractal();
+	}
 
-            // Set up pan and zoom interaction
-            await WebGPU.SetupInteractionAsync(dotNetRef);
+	[JSInvokable]
+	public async Task OnZoom(double zoomDelta, double normalizedX, double normalizedY)
+	{
+		// Calculate the point in complex plane where zoom is centered
+		var scale = 4.0 / State.ViewPort.Zoom;
+		var pointReal = State.ViewPort.CenterX + (normalizedX - 0.5) * scale;
+		var pointImag = State.ViewPort.CenterY + (normalizedY - 0.5) * scale;
+		
+		// Apply zoom
+		State.ViewPort.Zoom *= zoomDelta;
+		
+		// Limit zoom range
+		State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e15));
+		
+		// Adjust center to keep the zoom point fixed
+		var newScale = 4.0 / State.ViewPort.Zoom;
+		State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale;
+		State.ViewPort.CenterY = pointImag - (normalizedY - 0.5) * newScale;
+		
+		await RenderCurrentFractal();
+	}
 
-            // Render initial fractal
-            await RenderCurrentFractal();
+	private async Task OnFractalTypeChanged()
+	{
+		State.CurrentFractal = selectedFractalType;
+		
+		// Reset view for new fractal type
+		ResetView();
+		
+		await RenderCurrentFractal();
+	}
 
-            isInitializing = false;
-            StateHasChanged();
-        }
-    }
+	private void ResetView()
+	{
+		State.ViewPort.CenterX = 0.0;
+		State.ViewPort.CenterY = 0.0;
+		State.ViewPort.Zoom = 1.0;
+	}
 
-    [JSInvokable]
-    public async Task OnWindowResized()
-    {
-        // Update canvas size to maintain 1:1 aspect ratio
-        await UpdateCanvasSize();
+	private string GetFractalDisplayName(FractalType fractalType) => fractalType switch
+	{
+		FractalType.Mandelbrot => "Mandelbrot Set",
+		FractalType.Julia => "Julia Set",
+		FractalType.BurningShip => "Burning Ship",
+		FractalType.Newton => "Newton Fractal",
+		FractalType.Tricorn => "Tricorn (Mandelbar)",
+		FractalType.Phoenix => "Phoenix",
+		FractalType.BarnsleyFern => "Barnsley Fern",
+		_ => fractalType.ToString()
+	};
 
-        // Re-render fractal with new dimensions
-        await RenderCurrentFractal();
+	private async Task UpdateCanvasSize()
+	{
+		// Get square canvas dimensions (1:1 aspect ratio)
+		var (width, height) = await WebGPU.GetCanvasSizeAsync();
+		
+		canvasWidth = width;
+		canvasHeight = height;
+		
+		State.ViewPort.Width = canvasWidth;
+		State.ViewPort.Height = canvasHeight;
+		
+		await WebGPU.ResizeCanvasAsync(canvasWidth, canvasHeight);
+	}
 
-        StateHasChanged();
-    }
+	private async void OnStateChanged()
+	{
+		await RenderCurrentFractal();
+		StateHasChanged();
+	}
 
-    [JSInvokable]
-    public async Task OnPan(double deltaX, double deltaY)
-    {
-        // Convert pixel delta to complex plane delta
-        // Negative because moving mouse right should move view left
-        var scale = 4.0 / State.ViewPort.Zoom;
-        var deltaReal = -(deltaX / canvasWidth) * scale;
-        var deltaImag = -(deltaY / canvasHeight) * scale;
+	private async Task RenderCurrentFractal()
+	{
+		if (State.IsRendering) return;
 
-        State.ViewPort.CenterX += deltaReal;
-        State.ViewPort.CenterY += deltaImag;
+		try
+		{
+			State.IsRendering = true;
+			
+			// Convert palette to float array
+			var paletteData = GeneratePaletteData(State.CurrentPalette);
+			
+			await WebGPU.RenderFractalAsync(
+				State.CurrentFractal,
+				State.ViewPort,
+				State.MaxIterations,
+				paletteData
+			);
+		}
+		finally
+		{
+			State.IsRendering = false;
+		}
+	}
 
-        await RenderCurrentFractal();
-    }
+	private float[] GeneratePaletteData(ColorPalette palette)
+	{
+		const int paletteSize = 256;
+		var data = new float[paletteSize * 4]; // RGBA
 
-    [JSInvokable]
-    public async Task OnZoom(double zoomDelta, double normalizedX, double normalizedY)
-    {
-        // Calculate the point in complex plane where zoom is centered
-        var scale = 4.0 / State.ViewPort.Zoom;
-        var pointReal = State.ViewPort.CenterX + (normalizedX - 0.5) * scale;
-        var pointImag = State.ViewPort.CenterY + (normalizedY - 0.5) * scale;
+		for (int i = 0; i < paletteSize; i++)
+		{
+			var t = i / (float)(paletteSize - 1);
+			var color = InterpolateColor(palette, t);
+			
+			data[i * 4 + 0] = color.R / 255f;
+			data[i * 4 + 1] = color.G / 255f;
+			data[i * 4 + 2] = color.B / 255f;
+			data[i * 4 + 3] = 1.0f;
+		}
 
-        // Apply zoom
-        State.ViewPort.Zoom *= zoomDelta;
+		return data;
+	}
 
-        // Limit zoom range
-        State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e15));
+	private (byte R, byte G, byte B) InterpolateColor(ColorPalette palette, float t)
+	{
+		if (palette.Colors.Count == 0)
+			return (0, 0, 0);
 
-        // Adjust center to keep the zoom point fixed
-        var newScale = 4.0 / State.ViewPort.Zoom;
-        State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale;
-        State.ViewPort.CenterY = pointImag - (normalizedY - 0.5) * newScale;
+		if (palette.Colors.Count == 1)
+			return (palette.Colors[0].R, palette.Colors[0].G, palette.Colors[0].B);
 
-        await RenderCurrentFractal();
-    }
+		// Find the two colors to interpolate between
+		ColorStop? lower = null;
+		ColorStop? upper = null;
 
-    private async Task UpdateCanvasSize()
-    {
-        // Get square canvas dimensions (1:1 aspect ratio)
-        var (width, height) = await WebGPU.GetCanvasSizeAsync();
+		for (int i = 0; i < palette.Colors.Count - 1; i++)
+		{
+			if (t >= palette.Colors[i].Position && t <= palette.Colors[i + 1].Position)
+			{
+				lower = palette.Colors[i];
+				upper = palette.Colors[i + 1];
+				break;
+			}
+		}
 
-        canvasWidth = width;
-        canvasHeight = height;
+		if (lower == null || upper == null)
+		{
+			var lastColor = palette.Colors[^1];
+			return (lastColor.R, lastColor.G, lastColor.B);
+		}
 
-        State.ViewPort.Width = canvasWidth;
-        State.ViewPort.Height = canvasHeight;
+		// Interpolate
+		var range = upper.Position - lower.Position;
+		var localT = range > 0 ? (t - lower.Position) / range : 0;
 
-        await WebGPU.ResizeCanvasAsync(canvasWidth, canvasHeight);
-    }
+		var r = (byte)(lower.R + (upper.R - lower.R) * localT);
+		var g = (byte)(lower.G + (upper.G - lower.G) * localT);
+		var b = (byte)(lower.B + (upper.B - lower.B) * localT);
 
-    private async void OnStateChanged()
-    {
-        await RenderCurrentFractal();
-        StateHasChanged();
-    }
+		return (r, g, b);
+	}
 
-    private async Task RenderCurrentFractal()
-    {
-        if (State.IsRendering) return;
-
-        try
-        {
-            State.IsRendering = true;
-
-            // Convert palette to float array
-            var paletteData = GeneratePaletteData(State.CurrentPalette);
-
-            await WebGPU.RenderFractalAsync(
-                State.CurrentFractal,
-                State.ViewPort,
-                State.MaxIterations,
-                paletteData
-            );
-        }
-        finally
-        {
-            State.IsRendering = false;
-        }
-    }
-
-    private float[] GeneratePaletteData(ColorPalette palette)
-    {
-        const int paletteSize = 256;
-        var data = new float[paletteSize * 4]; // RGBA
-
-        for (int i = 0; i < paletteSize; i++)
-        {
-            var t = i / (float)(paletteSize - 1);
-            var color = InterpolateColor(palette, t);
-
-            data[i * 4 + 0] = color.R / 255f;
-            data[i * 4 + 1] = color.G / 255f;
-            data[i * 4 + 2] = color.B / 255f;
-            data[i * 4 + 3] = 1.0f;
-        }
-
-        return data;
-    }
-
-    private (byte R, byte G, byte B) InterpolateColor(ColorPalette palette, float t)
-    {
-        if (palette.Colors.Count == 0)
-            return (0, 0, 0);
-
-        if (palette.Colors.Count == 1)
-            return (palette.Colors[0].R, palette.Colors[0].G, palette.Colors[0].B);
-
-        // Find the two colors to interpolate between
-        ColorStop? lower = null;
-        ColorStop? upper = null;
-
-        for (int i = 0; i < palette.Colors.Count - 1; i++)
-        {
-            if (t >= palette.Colors[i].Position && t <= palette.Colors[i + 1].Position)
-            {
-                lower = palette.Colors[i];
-                upper = palette.Colors[i + 1];
-                break;
-            }
-        }
-
-        if (lower == null || upper == null)
-        {
-            var lastColor = palette.Colors[^1];
-            return (lastColor.R, lastColor.G, lastColor.B);
-        }
-
-        // Interpolate
-        var range = upper.Position - lower.Position;
-        var localT = range > 0 ? (t - lower.Position) / range : 0;
-
-        var r = (byte)(lower.R + (upper.R - lower.R) * localT);
-        var g = (byte)(lower.G + (upper.G - lower.G) * localT);
-        var b = (byte)(lower.B + (upper.B - lower.B) * localT);
-
-        return (r, g, b);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        State.OnStateChanged -= OnStateChanged;
-
-        if (windowEventsModule != null)
-        {
-            await windowEventsModule.InvokeVoidAsync("removeResizeHandler");
-            await windowEventsModule.DisposeAsync();
-        }
-
-        dotNetRef?.Dispose();
-
-        await WebGPU.DisposeAsync();
-    }
+	public async ValueTask DisposeAsync()
+	{
+		State.OnStateChanged -= OnStateChanged;
+		
+		if (windowEventsModule != null)
+		{
+			await windowEventsModule.InvokeVoidAsync("removeResizeHandler");
+			await windowEventsModule.DisposeAsync();
+		}
+		
+		dotNetRef?.Dispose();
+		
+		await WebGPU.DisposeAsync();
+	}
 }

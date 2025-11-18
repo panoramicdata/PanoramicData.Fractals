@@ -35,8 +35,23 @@
 				}
 			</select>
 		</div>
+		
+		<div class="control-group">
+			<button class="reset-button" @onclick="OnResetView">
+				<span class="reset-icon">↺</span> Reset View
+			</button>
+		</div>
 	</div>
 	
+	<!-- FPS Counter -->
+	@if (showFPS)
+	{
+		<div class="fps-counter">
+			<div class="fps-value">@currentFPS FPS</div>
+			<div class="fps-label">Performance</div>
+		</div>
+	}
+
 	@if (!webGPUSupported)
 	{
 		<div class="webgpu-error">
@@ -66,6 +81,12 @@
 	private FractalType selectedFractalType = FractalType.Mandelbrot;
 	private string selectedPaletteName = "Classic";
 	private bool suppressUrlUpdate = false;
+	
+	// FPS tracking
+	private bool showFPS = true;
+	private int currentFPS = 0;
+	private DateTime lastFrameTime = DateTime.UtcNow;
+	private Queue<double> frameTimes = new(60);
 
 	protected override void OnInitialized()
 	{
@@ -310,6 +331,33 @@
 		}
 	}
 
+	private async Task OnResetView()
+	{
+		ResetView();
+		await RenderCurrentFractal();
+		UpdateUrl();
+	}
+
+	private void UpdateFPS()
+	{
+		var now = DateTime.UtcNow;
+		var frameTime = (now - lastFrameTime).TotalMilliseconds;
+		lastFrameTime = now;
+		
+		frameTimes.Enqueue(frameTime);
+		if (frameTimes.Count > 60)
+		{
+			frameTimes.Dequeue();
+		}
+		
+		if (frameTimes.Count > 0)
+		{
+			var avgFrameTime = frameTimes.Average();
+			currentFPS = avgFrameTime > 0 ? (int)(1000.0 / avgFrameTime) : 0;
+			StateHasChanged();
+		}
+	}
+
 	private void ResetView()
 	{
 		State.ViewPort.CenterX = 0.0;
@@ -367,6 +415,9 @@
 				State.MaxIterations,
 				paletteData
 			);
+			
+			// Update FPS counter
+			UpdateFPS();
 		}
 		finally
 		{

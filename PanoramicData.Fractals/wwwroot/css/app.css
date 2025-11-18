@@ -287,6 +287,75 @@ html, body {
     padding: 8px;
 }
 
+/* Reset Button */
+.reset-button {
+    width: 220px;
+    background: linear-gradient(135deg, rgba(66, 165, 245, 0.3) 0%, rgba(100, 181, 246, 0.3) 100%);
+    color: white;
+    border: 1px solid rgba(100, 181, 246, 0.4);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.reset-button:hover {
+    background: linear-gradient(135deg, rgba(66, 165, 245, 0.5) 0%, rgba(100, 181, 246, 0.5) 100%);
+    border-color: rgba(100, 181, 246, 0.6);
+    transform: scale(1.02);
+    box-shadow: 0 4px 16px rgba(100, 181, 246, 0.3);
+}
+
+.reset-button:active {
+    transform: scale(0.98);
+}
+
+.reset-icon {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* FPS Counter */
+.fps-counter {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(76, 175, 80, 0.4);
+    border-radius: 12px;
+    padding: 12px 20px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    min-width: 100px;
+    text-align: center;
+}
+
+.fps-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #76FF03;
+    text-shadow: 0 0 10px rgba(118, 255, 3, 0.5);
+    line-height: 1;
+    margin-bottom: 4px;
+}
+
+.fps-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
 	.fractal-controls {

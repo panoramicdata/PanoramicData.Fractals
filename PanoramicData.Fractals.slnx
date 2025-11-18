@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="LICENSE" />
+    <File Path="MASTER_PLAN.md" />
+    <File Path="PanoramicData.Fractals.dic" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="PanoramicData.Fractals/PanoramicData.Fractals.csproj" />
+</Solution>

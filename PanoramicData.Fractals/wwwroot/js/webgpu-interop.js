@@ -354,7 +354,7 @@ export async function renderFractal(
         outputTexture = device.createTexture({
             size: { width, height },
             format: 'rgba8unorm',
-            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING,
+            usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC,
         });
     }
 
@@ -487,4 +487,159 @@ export function cleanup() {
     device = null;
     context = null;
     canvas = null;
+}
+
+// Capture screenshot and download as PNG
+export async function captureScreenshot(filename) {
+    if (!canvas || !device || !context || !outputTexture) {
+        console.error('Required resources not available for screenshot');
+        console.log('Available:', { 
+            canvas: !!canvas, 
+            device: !!device, 
+            context: !!context, 
+            outputTexture: !!outputTexture 
+        });
+        return;
+    }
+
+    try {
+        console.log('Capturing screenshot...');
+        console.log('Output texture format:', outputTexture.format);
+        console.log('Output texture size:', outputTexture.width, 'x', outputTexture.height);
+        
+        // Wait for GPU to finish all work
+        await device.queue.onSubmittedWorkDone();
+        
+        console.log('GPU work complete, reading texture data...');
+        
+        const width = outputTexture.width;
+        const height = outputTexture.height;
+        
+        // Create a buffer to read the texture data
+        const bytesPerPixel = 4; // RGBA
+        const bytesPerRow = Math.ceil((width * bytesPerPixel) / 256) * 256; // Align to 256 bytes
+        const bufferSize = bytesPerRow * height;
+        
+        console.log('Creating read buffer, size:', bufferSize, 'bytes');
+        
+        const readBuffer = device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+        });
+        
+        // Copy the output texture to the buffer
+        const commandEncoder = device.createCommandEncoder();
+        commandEncoder.copyTextureToBuffer(
+            { texture: outputTexture },
+            { buffer: readBuffer, bytesPerRow: bytesPerRow },
+            { width, height }
+        );
+        device.queue.submit([commandEncoder.finish()]);
+        
+        // Wait for copy to complete
+        await device.queue.onSubmittedWorkDone();
+        
+        console.log('Texture copied to buffer, reading data...');
+        
+        // Map the buffer and read the data
+        await readBuffer.mapAsync(GPUMapMode.READ);
+        const arrayBuffer = readBuffer.getMappedRange();
+        const pixelData = new Uint8Array(arrayBuffer);
+        
+        console.log('Data read, checking for non-black pixels...');
+        
+        // Check if image has any non-black pixels
+        let hasColor = false;
+        let sampleCount = 0;
+        let nonZeroCount = 0;
+        
+        // Sample every 100th pixel to check for content
+        for (let i = 0; i < pixelData.length; i += 400) {
+            sampleCount++;
+            if (pixelData[i] > 0 || pixelData[i + 1] > 0 || pixelData[i + 2] > 0) {
+                nonZeroCount++;
+                hasColor = true;
+            }
+        }
+        
+        console.log(`Sampled ${sampleCount} pixels, found ${nonZeroCount} non-black pixels`);
+        console.log('First 100 bytes:', Array.from(pixelData.slice(0, 100)));
+        
+        if (!hasColor) {
+            console.error('Image appears to be completely black! This is not a valid screenshot.');
+            console.log('Debug info:');
+            console.log('- Texture format:', outputTexture.format);
+            console.log('- Texture usage:', outputTexture.usage);
+            console.log('- Bytes per row:', bytesPerRow);
+            console.log('- Buffer size:', bufferSize);
+            
+            readBuffer.unmap();
+            readBuffer.destroy();
+            
+            alert('Screenshot failed: Image is completely black. This might be a WebGPU texture format issue.');
+            return;
+        }
+        
+        console.log('Valid image data found, creating canvas...');
+        
+        // Create a temporary canvas and copy the pixel data
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width;
+        tempCanvas.height = height;
+        
+        const ctx = tempCanvas.getContext('2d');
+        if (!ctx) {
+            console.error('Failed to get 2D context');
+            readBuffer.unmap();
+            readBuffer.destroy();
+            return;
+        }
+        
+        // Create ImageData and copy pixels
+        const imageData = ctx.createImageData(width, height);
+        
+        // Copy data row by row (accounting for padding)
+        for (let y = 0; y < height; y++) {
+            const srcOffset = y * bytesPerRow;
+            const dstOffset = y * width * bytesPerPixel;
+            for (let x = 0; x < width; x++) {
+                const srcIdx = srcOffset + x * bytesPerPixel;
+                const dstIdx = dstOffset + x * bytesPerPixel;
+                imageData.data[dstIdx] = pixelData[srcIdx];     // R
+                imageData.data[dstIdx + 1] = pixelData[srcIdx + 1]; // G
+                imageData.data[dstIdx + 2] = pixelData[srcIdx + 2]; // B
+                imageData.data[dstIdx + 3] = 255; // A (force opaque)
+            }
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Clean up GPU resources
+        readBuffer.unmap();
+        readBuffer.destroy();
+        
+        console.log('Image created, downloading...');
+        
+        // Convert to blob and download
+        tempCanvas.toBlob((blob) => {
+            if (!blob) {
+                console.error('Failed to create blob from canvas');
+                return;
+            }
+
+            console.log('Blob created, size:', blob.size, 'bytes');
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = filename || `fractal-${Date.now()}.png`;
+            link.href = url;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            console.log('Screenshot downloaded successfully!');
+        }, 'image/png', 1.0);
+    } catch (error) {
+        console.error('Screenshot capture failed:', error);
+        console.error('Error stack:', error.stack);
+    }
 }

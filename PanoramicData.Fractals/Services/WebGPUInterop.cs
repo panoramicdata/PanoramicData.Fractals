@@ -134,6 +134,26 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 		await _module.InvokeVoidAsync("resizeCanvas", width, height);
 	}
 
+	/// <summary>
+	/// Capture the current canvas and download as PNG
+	/// </summary>
+	public async Task CaptureScreenshotAsync(string filename)
+	{
+		if (_module == null || !_initialized)
+		{
+			return;
+		}
+
+		try
+		{
+			await _module.InvokeVoidAsync("captureScreenshot", filename);
+		}
+		catch (Exception ex)
+		{
+			Console.WriteLine($"Failed to capture screenshot: {ex.Message}");
+		}
+	}
+
 	public async ValueTask DisposeAsync()
 	{
 		if (_module != null)

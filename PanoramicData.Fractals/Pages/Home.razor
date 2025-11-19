@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @using PanoramicData.Fractals.Models
 @using PanoramicData.Fractals.Services
 @using Microsoft.AspNetCore.Components
@@ -46,6 +46,12 @@
 				<div class="control-group">
 					<button class="reset-button" @onclick="OnResetView">
 						<span class="reset-icon">↺</span> Reset View
+					</button>
+				</div>
+				
+				<div class="control-group">
+					<button class="action-button screenshot-button" @onclick="OnCaptureScreenshot">
+						<span class="button-icon">📷</span> Screenshot
 					</button>
 				</div>
 			</div>
@@ -348,6 +354,15 @@
 		UpdateUrl();
 	}
 
+	private async Task OnCaptureScreenshot()
+	{
+		var fractalName = State.CurrentFractal.ToString().ToLowerInvariant();
+		var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+		var filename = $"fractal-{fractalName}-{timestamp}.png";
+		
+		await WebGPU.CaptureScreenshotAsync(filename);
+	}
+
 	private void ToggleControls()
 	{
 		isControlsExpanded = !isControlsExpanded;
@@ -388,6 +403,9 @@
 
 	private async void OnStateChanged()
 	{
+		// Prevent overlapping renders during animation
+		if (State.IsRendering) return;
+		
 		await RenderCurrentFractal();
 		UpdateUrl();
 		StateHasChanged();

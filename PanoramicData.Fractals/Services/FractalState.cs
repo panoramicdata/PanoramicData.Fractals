@@ -48,5 +48,5 @@ public class FractalState
 		}
 	}
 
-	private void NotifyStateChanged() => OnStateChanged?.Invoke();
+	public void NotifyStateChanged() => OnStateChanged?.Invoke();
 }

@@ -54,6 +54,12 @@
 						<span class="button-icon">📷</span> Screenshot
 					</button>
 				</div>
+
+				<div class="control-group">
+					<button class="action-button help-button" @onclick="ToggleHelp">
+						<span class="button-icon">❓</span> Show Controls
+					</button>
+				</div>
 			</div>
 		}
 		else
@@ -63,6 +69,42 @@
 			</button>
 		}
 	</div>
+
+	<!-- Help Overlay (Bottom Right) -->
+	@if (isHelpVisible)
+	{
+		<div class="help-overlay">
+			<div class="help-content">
+				<button class="help-close" @onclick="ToggleHelp" title="Close help">×</button>
+				<h3>Controls</h3>
+				
+				@if (State.Is3D)
+				{
+					<div class="help-section">
+						<h4>3D Navigation</h4>
+						<div class="help-item"><kbd>Mouse Drag</kbd> Rotate camera</div>
+						<div class="help-item"><kbd>Shift + Drag</kbd> Move camera</div>
+						<div class="help-item"><kbd>Scroll Wheel</kbd> Zoom in/out</div>
+					</div>
+					<div class="help-section">
+						<h4>Keyboard</h4>
+						<div class="help-item"><kbd>W / S</kbd> Forward/Back</div>
+						<div class="help-item"><kbd>A / D</kbd> Strafe Left/Right</div>
+						<div class="help-item"><kbd>Z / Q</kbd> Move Up/Down</div>
+						<div class="help-item"><kbd>E / C</kbd> Zoom In/Out</div>
+					</div>
+				}
+				else
+				{
+					<div class="help-section">
+						<h4>2D Navigation</h4>
+						<div class="help-item"><kbd>Mouse Drag</kbd> Pan view</div>
+						<div class="help-item"><kbd>Scroll Wheel</kbd> Zoom in/out</div>
+					</div>
+				}
+			</div>
+		</div>
+	}
 
 	@if (!webGPUSupported)
 	{
@@ -82,6 +124,108 @@
 	}
 </div>
 
+<style>
+	.help-overlay {
+		position: absolute;
+		bottom: 20px;
+		right: 20px;
+		background: rgba(0, 0, 0, 0.9);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		padding: 20px;
+		color: white;
+		font-family: system-ui, -apple-system, sans-serif;
+		min-width: 280px;
+		max-width: 320px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+		z-index: 1000;
+	}
+
+	.help-content {
+		position: relative;
+	}
+
+	.help-close {
+		position: absolute;
+		top: -10px;
+		right: -10px;
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 4px;
+		color: white;
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		font-size: 20px;
+		line-height: 1;
+		transition: all 0.2s;
+		padding: 0;
+	}
+
+	.help-close:hover {
+		background: rgba(255, 255, 255, 0.2);
+		transform: scale(1.1);
+	}
+
+	.help-content h3 {
+		margin: 0 0 15px 0;
+		font-size: 18px;
+		font-weight: 600;
+		color: #4CAF50;
+	}
+
+	.help-section {
+		margin-bottom: 15px;
+	}
+
+	.help-section:last-child {
+		margin-bottom: 0;
+	}
+
+	.help-section h4 {
+		margin: 0 0 8px 0;
+		font-size: 14px;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.7);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.help-item {
+		display: flex;
+		align-items: center;
+		margin-bottom: 6px;
+		font-size: 13px;
+		line-height: 1.4;
+	}
+
+	.help-item kbd {
+		background: rgba(255, 255, 255, 0.1);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 3px;
+		padding: 2px 6px;
+		font-family: 'Courier New', monospace;
+		font-size: 11px;
+		margin-right: 8px;
+		white-space: nowrap;
+		min-width: 100px;
+		display: inline-block;
+	}
+
+	.help-button {
+		background: rgba(76, 175, 80, 0.2);
+		border: 1px solid rgba(76, 175, 80, 0.4);
+	}
+
+	.help-button:hover {
+		background: rgba(76, 175, 80, 0.3);
+		border-color: rgba(76, 175, 80, 0.6);
+	}
+</style>
+
 @code {
 	private ElementReference canvasRef;
 	private bool webGPUSupported = true;
@@ -94,6 +238,7 @@
 	private string selectedPaletteName = "Classic";
 	private bool suppressUrlUpdate = false;
 	private bool isControlsExpanded = true; // Default to expanded
+	private bool isHelpVisible = false; // Help overlay visibility
 
 	protected override void OnInitialized()
 	{
@@ -201,6 +346,43 @@
 		{
 			State.MaxIterations = Math.Max(10, Math.Min(iterations, 10000));
 		}
+
+		// Load 3D camera parameters
+		if (queryParams.TryGetValue("cx", out var cxValue) &&
+			double.TryParse(cxValue, out var cx))
+		{
+			State.Camera3D.PositionX = cx;
+		}
+
+		if (queryParams.TryGetValue("cy", out var cyValue) &&
+			double.TryParse(cyValue, out var cy))
+		{
+			State.Camera3D.PositionY = cy;
+		}
+
+		if (queryParams.TryGetValue("cz", out var czValue) &&
+			double.TryParse(czValue, out var cz))
+		{
+			State.Camera3D.PositionZ = cz;
+		}
+
+		if (queryParams.TryGetValue("yaw", out var yawValue) &&
+			double.TryParse(yawValue, out var yaw))
+		{
+			State.Camera3D.Yaw = yaw;
+		}
+
+		if (queryParams.TryGetValue("pitch", out var pitchValue) &&
+			double.TryParse(pitchValue, out var pitch))
+		{
+			State.Camera3D.Pitch = pitch;
+		}
+
+		if (queryParams.TryGetValue("fov", out var fovValue) &&
+			double.TryParse(fovValue, out var fov))
+		{
+			State.Camera3D.FieldOfView = Math.Clamp(fov, 1e-10, 3.0);
+		}
 	}
 
 	private (double Real, double Imag) ParseComplex(string complexStr)
@@ -248,10 +430,26 @@
 		{
 			["fractal"] = State.CurrentFractal.ToString().ToLowerInvariant(),
 			["palette"] = selectedPaletteName.ToLowerInvariant().Replace(" ", ""),
-			["c"] = FormatComplex(State.ViewPort.CenterX, State.ViewPort.CenterY),
-			["zoom"] = State.ViewPort.Zoom.ToString("G6"),
-			["iter" ] = State.MaxIterations.ToString()
+			["iter"] = State.MaxIterations.ToString()
 		};
+
+		// Add fractal-specific parameters
+		if (State.Is3D)
+		{
+			// 3D camera parameters
+			queryParams["cx"] = State.Camera3D.PositionX.ToString("G6");
+			queryParams["cy"] = State.Camera3D.PositionY.ToString("G6");
+			queryParams["cz"] = State.Camera3D.PositionZ.ToString("G6");
+			queryParams["yaw"] = State.Camera3D.Yaw.ToString("G6");
+			queryParams["pitch"] = State.Camera3D.Pitch.ToString("G6");
+			queryParams["fov"] = State.Camera3D.FieldOfView.ToString("G6");
+		}
+		else
+		{
+			// 2D viewport parameters
+			queryParams["c"] = FormatComplex(State.ViewPort.CenterX, State.ViewPort.CenterY);
+			queryParams["zoom"] = State.ViewPort.Zoom.ToString("G6");
+		}
 
 		var newUri = QueryHelpers.AddQueryString("/", queryParams);
 		Navigation.NavigateTo(newUri, replace: true);
@@ -504,6 +702,11 @@
 	private void ToggleControls()
 	{
 		isControlsExpanded = !isControlsExpanded;
+	}
+
+	private void ToggleHelp()
+	{
+		isHelpVisible = !isHelpVisible;
 	}
 
 	private string GetFractalDisplayName(FractalType fractalType) => fractalType switch

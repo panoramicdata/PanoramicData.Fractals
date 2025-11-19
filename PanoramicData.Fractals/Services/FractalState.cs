@@ -9,6 +9,7 @@ public class FractalState
 {
 	public FractalType CurrentFractal { get; set; } = FractalType.Mandelbrot;
 	public ColorPalette CurrentPalette { get; set; } = ColorPalette.Classic;
+	public Models.RenderMode RenderMode { get; set; } = Models.RenderMode.DistanceEstimation;
 	public ViewPort ViewPort { get; set; } = ViewPort.Default;
 	public Camera3D Camera3D { get; set; } = Camera3D.Default;  // For Mandelbulb
 	public int MaxIterations { get; set; } = 256;
@@ -35,6 +36,15 @@ public class FractalState
 		if (CurrentPalette != palette)
 		{
 			CurrentPalette = palette;
+			NotifyStateChanged();
+		}
+	}
+
+	public void SetRenderMode(Models.RenderMode mode)
+	{
+		if (RenderMode != mode)
+		{
+			RenderMode = mode;
 			NotifyStateChanged();
 		}
 	}

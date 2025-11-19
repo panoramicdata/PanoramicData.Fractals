@@ -43,6 +43,19 @@
 					</select>
 				</div>
 
+				@if (State.Is3D)
+				{
+					<div class="control-group">
+						<label for="rendermode-select">Rendering Mode</label>
+						<select id="rendermode-select" @bind="selectedRenderMode" @bind:after="OnRenderModeChanged">
+							@foreach (var mode in Enum.GetValues<Models.RenderMode>())
+							{
+								<option value="@mode">@GetRenderModeDisplayName(mode)</option>
+							}
+						</select>
+					</div>
+				}
+
 				<div class="control-group">
 					<button class="reset-button" @onclick="OnResetView">
 						<span class="reset-icon">↺</span> Reset View
@@ -236,6 +249,7 @@
 	private IJSObjectReference? windowEventsModule;
 	private FractalType selectedFractalType = FractalType.Mandelbrot;
 	private string selectedPaletteName = "Classic";
+	private Models.RenderMode selectedRenderMode = Models.RenderMode.DistanceEstimation;
 	private bool suppressUrlUpdate = false;
 	private bool isControlsExpanded = true; // Default to expanded
 	private bool isHelpVisible = false; // Help overlay visibility
@@ -383,6 +397,15 @@
 		{
 			State.Camera3D.FieldOfView = Math.Clamp(fov, 1e-10, 3.0);
 		}
+
+		// Load render mode for 3D fractals
+		if (queryParams.TryGetValue("rendermode", out var renderModeValue) &&
+			!string.IsNullOrEmpty(renderModeValue) &&
+			Enum.TryParse<Models.RenderMode>(renderModeValue, true, out var renderMode))
+		{
+			selectedRenderMode = renderMode;
+			State.RenderMode = renderMode;
+		}
 	}
 
 	private (double Real, double Imag) ParseComplex(string complexStr)
@@ -443,6 +466,7 @@
 			queryParams["yaw"] = State.Camera3D.Yaw.ToString("G6");
 			queryParams["pitch"] = State.Camera3D.Pitch.ToString("G6");
 			queryParams["fov"] = State.Camera3D.FieldOfView.ToString("G6");
+			queryParams["rendermode"] = State.RenderMode.ToString().ToLowerInvariant();
 		}
 		else
 		{
@@ -683,6 +707,13 @@
 		}
 	}
 
+	private async Task OnRenderModeChanged()
+	{
+		State.SetRenderMode(selectedRenderMode);
+		await RenderCurrentFractal();
+		UpdateUrl();
+	}
+
 	private async Task OnResetView()
 	{
 		ResetView();
@@ -706,8 +737,16 @@
 
 	private void ToggleHelp()
 	{
-		isHelpVisible = !isHelpVisible;
+	 isHelpVisible = !isHelpVisible;
 	}
+
+	private string GetRenderModeDisplayName(Models.RenderMode renderMode) => renderMode switch
+	{
+		Models.RenderMode.DistanceEstimation => "Distance Estimation",
+		Models.RenderMode.SimpleShading => "Simple Shading",
+		Models.RenderMode.RayTraced => "Ray Traced",
+		_ => renderMode.ToString()
+	};
 
 	private string GetFractalDisplayName(FractalType fractalType) => fractalType switch
 	{
@@ -754,7 +793,8 @@
 				State.Camera3D,
 				State.Is3D,
 				State.MaxIterations,
-				paletteData
+				paletteData,
+				State.RenderMode
 			);
 		}
 		finally

@@ -108,7 +108,8 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 		Camera3D camera3D,
 		bool is3D,
 		int maxIterations,
-		float[] paletteData)
+		float[] paletteData,
+		Models.RenderMode renderMode = Models.RenderMode.DistanceEstimation)
 	{
 		if (_module == null || !_initialized)
 		{
@@ -121,12 +122,18 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 		var centerY = is3D ? camera3D.PositionY : viewport.CenterY;
 		var centerXLo = is3D ? camera3D.PositionZ : 0.0;  // Z position for 3D
 		var centerYLo = is3D ? camera3D.Yaw : 0.0;  // Yaw for 3D
-		// For 3D: we need to pass BOTH pitch and FOV, so we use zoom for pitch and maxIterations slot for FOV (temporarily)
+		// For 3D: we need to pass BOTH pitch and FOV, so we use zoom for pitch and param7 for FOV
 		var zoom = is3D ? camera3D.Pitch : viewport.Zoom;  // Pitch for 3D, zoom for 2D
 		var param7 = is3D ? camera3D.FieldOfView : maxIterations;  // FOV for 3D, maxIterations for 2D
 
+		var fractalName = fractalType.ToString().ToLowerInvariant();
+		if (is3D && renderMode != Models.RenderMode.DistanceEstimation)
+		{
+			fractalName += $"_{renderMode.ToString().ToLowerInvariant()}";
+		}
+
 		await _module.InvokeVoidAsync("renderFractal",
-			fractalType.ToString().ToLowerInvariant(),
+			fractalName,
 			centerX,
 			centerY,
 			centerXLo,

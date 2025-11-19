@@ -691,7 +691,37 @@
 	private async Task OnFractalTypeChanged()
 	{
 		State.CurrentFractal = selectedFractalType;
-		ResetView();
+		
+		// Set defaults specific to Mandelbulb
+		if (selectedFractalType == FractalType.Mandelbulb)
+		{
+			// Set recommended camera position and orientation
+			State.Camera3D.PositionX = 0.0;
+			State.Camera3D.PositionY = 1.0;
+			State.Camera3D.PositionZ = 3.0;
+			State.Camera3D.Yaw = 0.005;
+			State.Camera3D.Pitch = -0.32;
+			State.Camera3D.FieldOfView = 0.891;
+			
+			// Set Psychedelic palette for Mandelbulb
+			var psychedelicPalette = ColorPalette.AllPalettes.FirstOrDefault(p => 
+				p.Name.Equals("Psychedelic", StringComparison.OrdinalIgnoreCase));
+			if (psychedelicPalette != null)
+			{
+				selectedPaletteName = psychedelicPalette.Name;
+				State.CurrentPalette = psychedelicPalette;
+			}
+			
+			// Set Ray Traced render mode
+			selectedRenderMode = Models.RenderMode.RayTraced;
+			State.RenderMode = Models.RenderMode.RayTraced;
+		}
+		else
+		{
+			// Reset to 2D defaults
+			ResetView();
+		}
+		
 		await RenderCurrentFractal();
 		UpdateUrl();
 	}

@@ -870,6 +870,81 @@ fn mandelbulb_de_full(pos: vec3<f32>, power: f32, maxIter: u32) -> DEResult {
     
     result.finalR = r;
     result.distance = 0.5 * log(r) * r / dr;
+    return result;
+}
+
+// Calculate normal
+fn calculateNormal(p: vec3<f32>, power: f32, maxIter: u32) -> vec3<f32> {
+    let eps = 0.0001;
+    let xp = mandelbulb_de_full(p + vec3<f32>(eps, 0.0, 0.0), power, maxIter).distance;
+    let xn = mandelbulb_de_full(p - vec3<f32>(eps, 0.0, 0.0), power, maxIter).distance;
+    let yp = mandelbulb_de_full(p + vec3<f32>(0.0, eps, 0.0), power, maxIter).distance;
+    let yn = mandelbulb_de_full(p - vec3<f32>(0.0, eps, 0.0), power, maxIter).distance;
+    let zp = mandelbulb_de_full(p + vec3<f32>(0.0, 0.0, eps), power, maxIter).distance;
+    let zn = mandelbulb_de_full(p - vec3<f32>(0.0, 0.0, eps), power, maxIter).distance;
+    
+    return normalize(vec3<f32>(xp - xn, yp - yn, zp - zn));
+}
+
+// Ambient Occlusion
+fn calculateAO(p: vec3<f32>, normal: vec3<f32>, power: f32, maxIter: u32) -> f32 {
+    var occlusion = 0.0;
+    var scale = 1.0;
+    
+    for (var i = 0u; i < 5u; i++) {
+        let h = 0.01 + 0.12 * f32(i) / 4.0;
+        let d = mandelbulb_de_full(p + normal * h, power, maxIter).distance;
+        occlusion += (h - d) * scale;
+        scale *= 0.95;
+    }
+    
+    return clamp(1.0 - 3.0 * occlusion, 0.0, 1.0);
+}
+
+// Soft shadows
+fn softShadow(p: vec3<f32>, lightDir: vec3<f32>, power: f32, maxIter: u32) -> f32 {
+    var res = 1.0;
+    var t = 0.02;
+    
+    for (var i = 0u; i < 16u; i++) {
+        let h = mandelbulb_de_full(p + lightDir * t, power, maxIter).distance;
+        if (h < 0.001) {
+            return 0.0;
+        }
+        res = min(res, 8.0 * h / t);
+        t += h;
+        if (t > 2.5) {
+            break;
+        }
+    }
+    
+    return clamp(res, 0.0, 1.0);
+}
+
+// Environment/Ambient lighting - gradient from top to bottom
+fn getEnvironmentColor(dir: vec3<f32>) -> vec3<f32> {
+    // Vertical gradient: dark gray at bottom, light at top
+    let t = dir.y * 0.5 + 0.5; // Map -1..1 to 0..1
+    let skyColor = vec3<f32>(0.8, 0.85, 0.9);   // Light blue-gray sky
+    let groundColor = vec3<f32>(0.15, 0.15, 0.2); // Dark blue-gray ground
+    return mix(groundColor, skyColor, t);
+}
+
+// Ray marching with Advanced Lighting
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    let x = global_id.x;
+    let y = global_id.y;
+    
+    if (x >= params.width || y >= params.height) {
+        return;
+    }
+    
+    // FPS Camera parameters
+    let camPosX = params.centerX_hi;
+    let camPosY = params.centerY_hi;
+    let camPosZ = params.centerX_lo;
+    let yaw = params.centerY_lo;
     let pitch = params.zoom;
     let fov = params.fieldOfView;
     let power = 8.0;
@@ -962,24 +1037,30 @@ fn mandelbulb_de_full(pos: vec3<f32>, power: f32, maxIter: u32) -> DEResult {
         let specular1 = pow(max(dot(normal, halfDir1), 0.0), 32.0);
         let specular2 = pow(max(dot(normal, halfDir2), 0.0), 32.0);
         
-        // Combine lighting
-        let ambient = 0.15;
-        let light1 = (diffuse1 * shadow1 * 0.7 + specular1 * shadow1 * 0.3);
-        let light2 = (diffuse2 * shadow2 * 0.4 + specular2 * shadow2 * 0.2);
-        let intensity = clamp((ambient + light1 + light2) * ao, 0.0, 1.0);
+        // Environment lighting (reflection)
+        let reflectDir = reflect(rayDir, normal);
+        let envColor = getEnvironmentColor(reflectDir);
         
         // Get base color from palette
         let paletteSize = arrayLength(&palette);
         let distFromOrigin = length(p);
         var colorT = fract(distFromOrigin * 0.5);
         var paletteIndex = u32(clamp(colorT * f32(paletteSize - 1u), 0.0, f32(paletteSize - 1u)));
-        
         var baseColor = palette[paletteIndex];
-        let finalColor = baseColor.rgb * intensity;
+        
+        // Combine all lighting
+        let directLight1 = (diffuse1 * shadow1 * 0.7 + specular1 * shadow1 * 0.3);
+        let directLight2 = (diffuse2 * shadow2 * 0.4 + specular2 * shadow2 * 0.2);
+        let ambientLight = envColor * ao * 0.3; // Environment contribution
+        
+        let litColor = baseColor.rgb * (directLight1 + directLight2) + ambientLight * baseColor.rgb;
+        let finalColor = clamp(litColor, vec3<f32>(0.0), vec3<f32>(1.0));
         
         color = vec4<f32>(finalColor, 1.0);
     } else {
-        color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+        // Render environment when ray misses
+        let envColor = getEnvironmentColor(rayDir);
+        color = vec4<f32>(envColor, 1.0);
     }
     
     textureStore(outputTexture, vec2<i32>(i32(x), i32(y)), color);

@@ -18,8 +18,7 @@ struct FractalParams {
 
 // ============================================================================
 // PROCEDURAL LANDSCAPE FRACTAL - MULTI-LAYER VERSION
-// Features: Terrain (base), Water (layer 1), Roads (layer 2), Urban (layer 3), Clouds (layer 4 with height)
-// Road system inspired by slime mold growth - organic branching paths
+// Features: Terrain (base), Water, Vegetation, Urban, Buildings, Clouds
 // ============================================================================
 
 // Hash and noise functions
@@ -66,8 +65,8 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
 
 // LAYER 0: TERRAIN (Base layer)
 fn getTerrainHeight(p: vec2<f32>) -> f32 {
-    let mountains = fbm(p * 0.3, 6) * 2.0;
-    let hills = fbm(p * 1.5, 4) * 0.5;
+    let mountains = fbm(p * 0.3, 6) * 0.8;
+    let hills = fbm(p * 1.5, 4) * 0.3;
     let details = fbm(p * 5.0, 3) * 0.1;
     
     return mountains + hills + details;
@@ -160,15 +159,15 @@ fn getTreeDensity(p: vec2<f32>) -> f32 {
     return clamp(treeDensity * treeNoise, 0.0, 1.0);
 }
 
-// LAYER 3: URBAN CENTERS (for road destinations)
+// LAYER 3: URBAN CENTERS
 fn getUrbanDensity(p: vec2<f32>) -> f32 {
     let water = max(getWaterMask(p), getRiverMask(p));
     if (water > 0.3) {
         return 0.0;
     }
     
-    let centerNoise = fbm(p * 0.08, 3); // Sparser cities
-    let urbanThreshold = 0.68; // Higher threshold = fewer cities
+    let centerNoise = fbm(p * 0.08, 3);
+    let urbanThreshold = 0.68;
     
     if (centerNoise > urbanThreshold) {
         let centerDist = (centerNoise - urbanThreshold) * 6.0;
@@ -177,107 +176,7 @@ fn getUrbanDensity(p: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-fn getCityCenter(gridPos: vec2<f32>) -> vec2<f32> {
-    // Deterministic city center based on grid position
-    let offset = hash22(gridPos * 456.789);
-    return gridPos + offset * 0.8 + 0.1; // Keep cities within grid cells
-}
-
-// LAYER 4: ROAD NETWORK (Slime mold inspired - organic branching)
-struct RoadResult {
-    highway: f32,  // Major highways (red-orange)
-    arterial: f32, // Medium roads (orange-yellow)
-    local: f32,    // Small local roads (yellow)
-}
-
-fn getRoadNetwork(p: vec2<f32>) -> RoadResult {
-    var result: RoadResult;
-    result.highway = 0.0;
-    result.arterial = 0.0;
-    result.local = 0.0;
-    
-    let water = max(getWaterMask(p), getRiverMask(p));
-    if (water > 0.3) {
-        return result;
-    }
-    
-    let gradient = getTerrainGradient(p);
-    if (gradient > 0.5) {
-        return result; // No roads on very steep terrain
-    }
-    
-    let citySpacing = 4.0;
-    let gridPos = floor(p / citySpacing);
-    
-    // Find nearest cities for road connections
-    var nearestCityDist = 999.0;
-    var nearestCityPos = vec2<f32>(0.0, 0.0);
-    var secondNearestDist = 999.0;
-    var cityCount = 0;
-    
-    for (var dx = -2; dx <= 2; dx++) {
-        for (var dy = -2; dy <= 2; dy++) {
-            let testGrid = gridPos + vec2<f32>(f32(dx), f32(dy));
-            let cityNoise = hash21(testGrid * 123.456);
-            
-            if (cityNoise > 0.65) { // Sparser cities
-                let cityCenter = getCityCenter(testGrid) * citySpacing;
-                let dist = length(p - cityCenter);
-                
-                cityCount++;
-                
-                if (dist < nearestCityDist) {
-                    secondNearestDist = nearestCityDist;
-                    nearestCityDist = dist;
-                    nearestCityPos = cityCenter;
-                } else if (dist < secondNearestDist) {
-                    secondNearestDist = dist;
-                }
-            }
-        }
-    }
-    
-    // HIGHWAY NETWORK: Connects cities but BYPASSES them (stays outside)
-    if (cityCount >= 2) {
-        // Distance to nearest city edge (not center)
-        let cityRadius = 0.4;
-        let distToCity = max(nearestCityDist - cityRadius, 0.0);
-        
-        // Highways form between cities, avoiding centers
-        let betweenCities = smoothstep(0.8, 0.3, abs(nearestCityDist - secondNearestDist));
-        
-        // Highway only if we're OUTSIDE city centers
-        if (nearestCityDist > cityRadius * 1.2) {
-            let highwayNoise = fbm(p * 0.3, 2);
-            let highwayPath = smoothstep(0.5, 0.48, highwayNoise);
-            
-            result.highway = highwayPath * betweenCities * (1.0 - gradient);
-        }
-    }
-    
-    // ARTERIAL ROADS: Connect to city edges from highways
-    if (nearestCityDist < 2.0 && nearestCityDist > 0.3) {
-        let dirToCity = normalize(nearestCityPos - p);
-        let roadNoise = fbm(p * 0.8, 2);
-        let alignment = abs(dot(dirToCity, normalize(vec2<f32>(cos(roadNoise), sin(roadNoise)))));
-        
-        result.arterial = smoothstep(0.7, 0.9, alignment) * smoothstep(2.0, 0.5, nearestCityDist);
-    }
-    
-    // LOCAL ROADS: Within and near cities
-    if (nearestCityDist < 0.8) {
-        let localGrid = fract(p * 8.0);
-        let localRoadWidth = 0.08;
-        
-        if (localGrid.x < localRoadWidth || localGrid.y < localRoadWidth) {
-            result.local = smoothstep(0.8, 0.2, nearestCityDist);
-        }
-    }
-    
-    return result;
-}
-
-// LAYER 5: BUILDINGS
+// LAYER 4: BUILDINGS
 fn getBuildingMask(p: vec2<f32>) -> f32 {
     let water = max(getWaterMask(p), getRiverMask(p));
     if (water > 0.3) {
@@ -303,20 +202,18 @@ fn getBuildingMask(p: vec2<f32>) -> f32 {
     return 0.0;
 }
 
-// LAYER 6: CLOUDS (with variable height/thickness)
+// LAYER 5: CLOUDS (with variable height/thickness)
 struct CloudLayer {
     coverage: f32,
-    thickness: f32, // 0-1, higher = thicker/darker clouds
+    thickness: f32,
 }
 
 fn getCloudLayer(p: vec2<f32>) -> CloudLayer {
     var cloud: CloudLayer;
     
-    // Base cloud coverage
     let cloudNoise = fbm(p * 0.6 + vec2<f32>(50.0, 50.0), 5);
     cloud.coverage = smoothstep(0.4, 0.7, cloudNoise);
     
-    // Cloud thickness varies with secondary noise
     let thicknessNoise = fbm(p * 1.2 + vec2<f32>(25.0, 75.0), 3);
     cloud.thickness = smoothstep(0.3, 0.8, thicknessNoise);
     
@@ -349,7 +246,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let waterMask = getWaterMask(worldPos);
     let riverMask = getRiverMask(worldPos);
     let treeDensity = getTreeDensity(worldPos);
-    let roads = getRoadNetwork(worldPos);
     let buildingMask = getBuildingMask(worldPos);
     let urbanDensity = getUrbanDensity(worldPos);
     let clouds = getCloudLayer(worldPos);
@@ -376,25 +272,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     let isWater = max(waterMask, riverMask);
     
-    // Layer: Roads (separate layer, drawn AFTER water)
-    if (isWater < 0.3) {
-        // Highway: Dark red-orange (largest, bypasses cities)
-        if (roads.highway > 0.4) {
-            let highwayColor = vec3<f32>(0.8, 0.2, 0.1); // Dark red
-            finalColor = mix(finalColor, highwayColor, roads.highway * 0.95);
-        }
-        // Arterial: Orange-red (medium, connects to cities)
-        else if (roads.arterial > 0.3) {
-            let arterialColor = vec3<f32>(0.85, 0.4, 0.15); // Orange
-            finalColor = mix(finalColor, arterialColor, roads.arterial * 0.9);
-        }
-        // Local: Yellow-orange (small, within cities)
-        else if (roads.local > 0.2) {
-            let localColor = vec3<f32>(0.9, 0.7, 0.2); // Yellow-orange
-            finalColor = mix(finalColor, localColor, roads.local * 0.85);
-        }
-    }
-    
     // Layer: Buildings
     if (buildingMask > 0.0 && isWater < 0.3) {
         let buildingNoise = hash21(floor(worldPos * 5.0));
@@ -412,7 +289,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         finalColor = mix(finalColor, urbanColor, urbanDensity * 0.25);
     }
     
-    // Lighting (before clouds)
+    // Lighting
     let lightDir = normalize(vec3<f32>(1.0, 1.0, 0.6));
     let epsilon = 0.01;
     let hx = getTerrainHeight(worldPos + vec2<f32>(epsilon, 0.0));
@@ -438,12 +315,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     // Layer: Clouds (top layer with variable thickness)
     if (clouds.coverage > 0.3) {
-        // Cloud color varies by thickness: thin=white, thick=gray
         let thinCloudColor = vec3<f32>(1.0, 1.0, 1.0);
         let thickCloudColor = vec3<f32>(0.6, 0.6, 0.65);
         let cloudColor = mix(thinCloudColor, thickCloudColor, clouds.thickness);
         
-        // Alpha based on coverage and thickness
         let cloudAlpha = clouds.coverage * mix(0.3, 0.7, clouds.thickness);
         finalColor = mix(finalColor, cloudColor, cloudAlpha);
     }

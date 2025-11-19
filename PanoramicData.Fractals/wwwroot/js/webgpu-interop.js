@@ -458,25 +458,34 @@ export async function renderFractal(
     });
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
 
-    // Create palette buffer
-    if (paletteBuffer) {
-        paletteBuffer.destroy();
+    // Create palette buffer (skip for landscape fractal which doesn't use it)
+    const usePalette = fractalType !== 'landscape';
+    
+    if (usePalette) {
+        if (paletteBuffer) {
+            paletteBuffer.destroy();
+        }
+        paletteBuffer = device.createBuffer({
+            size: paletteData.length * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        const paletteFloat32 = paletteData instanceof Float32Array ? paletteData : new Float32Array(paletteData);
+        device.queue.writeBuffer(paletteBuffer, 0, paletteFloat32);
     }
-    paletteBuffer = device.createBuffer({
-        size: paletteData.length * 4,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-    });
-    const paletteFloat32 = paletteData instanceof Float32Array ? paletteData : new Float32Array(paletteData);
-    device.queue.writeBuffer(paletteBuffer, 0, paletteFloat32);
 
-    // Create compute bind group
+    // Create compute bind group (conditionally include palette)
+    const bindGroupEntries = [
+        { binding: 0, resource: outputTexture.createView() },
+        { binding: 1, resource: { buffer: uniformBuffer } },
+    ];
+    
+    if (usePalette) {
+        bindGroupEntries.push({ binding: 2, resource: { buffer: paletteBuffer } });
+    }
+    
     computeBindGroup = device.createBindGroup({
         layout: computePipeline.getBindGroupLayout(0),
-        entries: [
-            { binding: 0, resource: outputTexture.createView() },
-            { binding: 1, resource: { buffer: uniformBuffer } },
-            { binding: 2, resource: { buffer: paletteBuffer } },
-        ],
+        entries: bindGroupEntries,
     });
 
     // Create sampler

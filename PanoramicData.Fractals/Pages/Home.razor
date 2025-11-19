@@ -119,6 +119,80 @@
 		</div>
 	}
 
+	<!-- Landscape Legend (Bottom Left) - Only show for Landscape fractal -->
+	@if (State.CurrentFractal == FractalType.Landscape)
+	{
+		<div class="landscape-legend">
+			<h3>🗺️ Landscape Layers</h3>
+			<div class="legend-section">
+				<h4>Terrain (Base)</h4>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: linear-gradient(to right, rgb(217, 191, 140), rgb(217, 191, 140));"></div>
+					<span>Beach / Sand</span>
+				</div>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: linear-gradient(to right, rgb(51, 166, 38), rgb(140, 115, 77));"></div>
+					<span>Grassland / Plains</span>
+				</div>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: linear-gradient(to right, rgb(115, 102, 89), rgb(242, 242, 255));"></div>
+					<span>Mountains → Snow</span>
+				</div>
+			</div>
+			<div class="legend-section">
+				<h4>Water Layer</h4>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: linear-gradient(to right, rgb(64, 179, 191), rgb(13, 64, 140));"></div>
+					<span>Lakes (shallow → deep)</span>
+				</div>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: rgb(51, 153, 230);"></div>
+					<span>Rivers</span>
+				</div>
+			</div>
+			<div class="legend-section">
+				<h4>Vegetation Layer</h4>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: rgb(20, 102, 20);"></div>
+					<span>Forests</span>
+				</div>
+			</div>
+			<div class="legend-section">
+				<h4>Road Network Layer</h4>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: rgb(204, 51, 26);"></div>
+					<span>Highways (bypass cities)</span>
+				</div>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: rgb(217, 102, 38);"></div>
+					<span>Arterial Roads</span>
+				</div>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: rgb(230, 179, 51);"></div>
+					<span>Local Streets</span>
+				</div>
+			</div>
+			<div class="legend-section">
+				<h4>Urban Layer</h4>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: linear-gradient(to right, rgb(179, 153, 115), rgb(191, 191, 191));"></div>
+					<span>Buildings</span>
+				</div>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: rgb(115, 115, 115);"></div>
+					<span>Urban Areas</span>
+				</div>
+			</div>
+			<div class="legend-section">
+				<h4>Cloud Layer (Height)</h4>
+				<div class="legend-item">
+					<div class="color-swatch" style="background: linear-gradient(to right, rgb(255, 255, 255), rgb(153, 153, 166));"></div>
+					<span>Thin → Thick Clouds</span>
+				</div>
+			</div>
+		</div>
+	}
+
 	@if (!webGPUSupported)
 	{
 		<div class="webgpu-error">
@@ -236,6 +310,72 @@
 	.help-button:hover {
 		background: rgba(76, 175, 80, 0.3);
 		border-color: rgba(76, 175, 80, 0.6);
+	}
+
+	/* Landscape Legend Styles */
+	.landscape-legend {
+		position: absolute;
+		bottom: 20px;
+		left: 20px;
+		background: rgba(0, 0, 0, 0.9);
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 8px;
+		padding: 15px;
+		color: white;
+		font-family: system-ui, -apple-system, sans-serif;
+		max-width: 280px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+		z-index: 999;
+	}
+
+	.landscape-legend h3 {
+		margin: 0 0 12px 0;
+		font-size: 16px;
+		font-weight: 600;
+		color: #4CAF50;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		padding-bottom: 8px;
+	}
+
+	.legend-section {
+		margin-bottom: 12px;
+	}
+
+	.legend-section:last-child {
+		margin-bottom: 0;
+	}
+
+	.legend-section h4 {
+		margin: 0 0 6px 0;
+		font-size: 12px;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.6);
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.legend-item {
+		display: flex;
+		align-items: center;
+		margin-bottom: 4px;
+		font-size: 12px;
+	}
+
+	.legend-item:last-child {
+		margin-bottom: 0;
+	}
+
+	.color-swatch {
+		width: 40px;
+		height: 16px;
+		border-radius: 3px;
+		margin-right: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		flex-shrink: 0;
+	}
+
+	.legend-item span {
+		color: rgba(255, 255, 255, 0.9);
 	}
 </style>
 

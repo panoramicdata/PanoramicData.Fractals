@@ -12,5 +12,6 @@ public enum FractalType
 	Tricorn,
 	Phoenix,
 	BarnsleyFern,
-	Mandelbulb  // 3D fractal - Phase 7!
+	Mandelbulb,  // 3D fractal - Phase 7!
+	Landscape    // NEW: Procedural landscape with towns, rivers, roads, etc.
 }

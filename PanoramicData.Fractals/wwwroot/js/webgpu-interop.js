@@ -16,6 +16,7 @@ let presentationFormat = null;
 
 // Interaction state
 let isPanning = false;
+let isShiftPressed = false;  // Track shift key for 3D camera panning
 let lastMouseX = 0;
 let lastMouseY = 0;
 let interactionCallback = null;
@@ -47,6 +48,26 @@ export function setupInteraction(dotNetHelper) {
 
     interactionCallback = dotNetHelper;
 
+    // Track Shift key state
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') {
+            isShiftPressed = true;
+        }
+        
+        // WASD+QZ+EC keyboard movement for 3D camera
+        const validKeys = ['w', 'a', 's', 'd', 'q', 'z', 'e', 'c', 'W', 'A', 'S', 'D', 'Q', 'Z', 'E', 'C'];
+        if (validKeys.includes(e.key)) {
+            e.preventDefault();
+            interactionCallback.invokeMethodAsync('OnKeyboardMove', e.key.toLowerCase());
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') {
+            isShiftPressed = false;
+        }
+    });
+
     // Mouse down - start panning
     canvas.addEventListener('mousedown', (e) => {
         isPanning = true;
@@ -55,7 +76,7 @@ export function setupInteraction(dotNetHelper) {
         e.preventDefault();
     });
 
-    // Mouse move - pan the view
+    // Mouse move - pan OR rotate (depending on Shift key)
     canvas.addEventListener('mousemove', async (e) => {
         if (!isPanning) return;
 
@@ -65,8 +86,12 @@ export function setupInteraction(dotNetHelper) {
         lastMouseX = e.clientX;
         lastMouseY = e.clientY;
 
-        // Notify Blazor component of pan
-        await interactionCallback.invokeMethodAsync('OnPan', deltaX, deltaY);
+        // Shift+drag for 3D camera panning, regular drag for rotation/2D pan
+        if (isShiftPressed) {
+            await interactionCallback.invokeMethodAsync('OnCameraPan', deltaX, deltaY);
+        } else {
+            await interactionCallback.invokeMethodAsync('OnPan', deltaX, deltaY);
+        }
     });
 
     // Mouse up - stop panning
@@ -80,8 +105,8 @@ export function setupInteraction(dotNetHelper) {
     canvas.addEventListener('wheel', async (e) => {
         e.preventDefault();
 
-        // Calculate zoom delta (negative for zoom in, positive for zoom out)
-        const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1; // 10% zoom steps
+        // FIXED: Inverted zoom direction - scroll down now zooms IN (feels more natural for 3D)
+        const zoomDelta = e.deltaY < 0 ? 0.9 : 1.1; // deltaY < 0 (scroll up) = zoom out
 
         // Get mouse position relative to canvas
         const rect = canvas.getBoundingClientRect();
@@ -105,12 +130,12 @@ export function setupInteraction(dotNetHelper) {
         e.preventDefault();
 
         if (e.touches.length === 1) {
-            // Single touch - pan
+            // Single touch - pan/rotate
             isPanning = true;
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
         } else if (e.touches.length === 2) {
-            // Two touches - zoom
+            // Two touches - zoom OR pan (depending on gesture)
             isPanning = false;
             const dx = e.touches[1].clientX - e.touches[0].clientX;
             const dy = e.touches[1].clientY - e.touches[0].clientY;
@@ -122,7 +147,7 @@ export function setupInteraction(dotNetHelper) {
         e.preventDefault();
 
         if (e.touches.length === 1 && isPanning) {
-            // Pan
+            // Single touch pan/rotate
             const deltaX = e.touches[0].clientX - touchStartX;
             const deltaY = e.touches[0].clientY - touchStartY;
 
@@ -131,23 +156,42 @@ export function setupInteraction(dotNetHelper) {
 
             await interactionCallback.invokeMethodAsync('OnPan', deltaX, deltaY);
         } else if (e.touches.length === 2) {
-            // Pinch zoom
+            // Two-finger: check if pinch (zoom) or drag (pan)
             const dx = e.touches[1].clientX - e.touches[0].clientX;
             const dy = e.touches[1].clientY - e.touches[0].clientY;
             const currentDist = Math.sqrt(dx * dx + dy * dy);
 
             if (touchStartDist > 0) {
-                const zoomDelta = currentDist / touchStartDist;
+                const distChange = Math.abs(currentDist - touchStartDist);
+                
+                // If fingers are moving apart/together significantly = pinch zoom
+                if (distChange > 5) {
+                    const zoomDelta = currentDist / touchStartDist;
 
-                // Get center point between touches
-                const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    // Get center point between touches
+                    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-                const rect = canvas.getBoundingClientRect();
-                const normalizedX = (centerX - rect.left) / canvas.width;
-                const normalizedY = (centerY - rect.top) / canvas.height;
+                    const rect = canvas.getBoundingClientRect();
+                    const normalizedX = (centerX - rect.left) / canvas.width;
+                    const normalizedY = (centerY - rect.top) / canvas.height;
 
-                await interactionCallback.invokeMethodAsync('OnZoom', zoomDelta, normalizedX, normalizedY);
+                    await interactionCallback.invokeMethodAsync('OnZoom', zoomDelta, normalizedX, normalizedY);
+                }
+                // Otherwise, two-finger drag = 3D camera pan
+                else {
+                    const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    
+                    // Calculate movement of center point
+                    const prevCenterX = (touchStartX + e.touches[1].clientX - (e.touches[0].clientX - touchStartX)) / 2;
+                    const prevCenterY = (touchStartY + e.touches[1].clientY - (e.touches[0].clientY - touchStartY)) / 2;
+                    
+                    const panDeltaX = centerX - prevCenterX;
+                    const panDeltaY = centerY - prevCenterY;
+                    
+                    await interactionCallback.invokeMethodAsync('OnCameraPan', panDeltaX, panDeltaY);
+                }
             }
 
             touchStartDist = currentDist;
@@ -295,19 +339,39 @@ async function createComputePipeline(fractalType) {
         return null;
     }
 
-    const shaderModule = device.createShaderModule({
-        code: shaderCode,
-    });
+    console.log(`Creating compute pipeline for ${fractalType}...`);
+    console.log(`Shader code length: ${shaderCode.length} characters`);
 
-    const pipeline = device.createComputePipeline({
-        layout: 'auto',
-        compute: {
-            module: shaderModule,
-            entryPoint: 'main',
-        },
-    });
+    try {
+        const shaderModule = device.createShaderModule({
+            code: shaderCode,
+        });
 
-    return pipeline;
+        // Check for shader compilation errors
+        const compilationInfo = await shaderModule.getCompilationInfo();
+        if (compilationInfo.messages.length > 0) {
+            console.warn(`Shader compilation messages for ${fractalType}:`);
+            for (const message of compilationInfo.messages) {
+                console.log(`  [${message.type}] Line ${message.lineNum}: ${message.message}`);
+            }
+        }
+
+        const pipeline = device.createComputePipeline({
+            layout: 'auto',
+            compute: {
+                module: shaderModule,
+                entryPoint: 'main',
+            },
+        });
+
+        console.log(`Pipeline created successfully for ${fractalType}`);
+        return pipeline;
+    } catch (error) {
+        console.error(`Failed to create pipeline for ${fractalType}:`, error);
+        console.error('Error details:', error.message);
+        console.error('Shader code (first 500 chars):', shaderCode.substring(0, 500));
+        return null;
+    }
 }
 
 // Render fractal
@@ -315,15 +379,29 @@ export async function renderFractal(
     fractalType,
     centerX,
     centerY,
+    centerXLo,
+    centerYLo,
     zoom,
     width,
     height,
     maxIterations,
+    fieldOfView,  // NEW: Field of View for 3D camera
     paletteData
 ) {
     if (!device || !context) {
         console.error('WebGPU not initialized');
         return;
+    }
+
+    // DEBUG LOGGING for Mandelbulb
+    if (fractalType === 'mandelbulb') {
+        console.log('=== WEBGPU RENDER DEBUG ===');
+        console.log('fractalType:', fractalType);
+        console.log('Camera Position:', centerX, centerY, centerXLo);
+        console.log('Yaw:', centerYLo);
+        console.log('Pitch:', zoom);
+        console.log('FOV:', fieldOfView);
+        console.log('width x height:', width, 'x', height);
     }
 
     // Ensure canvas size matches
@@ -358,33 +436,24 @@ export async function renderFractal(
         });
     }
 
-    // Split double precision values into high/low parts for better precision
-    function splitDouble(value) {
-        const hi = Math.fround(value);
-        const lo = value - hi;
-        return { hi, lo };
-    }
-
-    const centerXSplit = splitDouble(centerX);
-    const centerYSplit = splitDouble(centerY);
-
-    // Create uniform buffer for parameters
-    const uniformData = new ArrayBuffer(48);
+    // Create uniform buffer for parameters - EXPANDED to include FOV
+    const uniformData = new ArrayBuffer(64);  // Increased from 48 to 64 bytes
     const uniformView = new DataView(uniformData);
     uniformView.setUint32(0, width, true);
     uniformView.setUint32(4, height, true);
-    uniformView.setFloat32(8, centerXSplit.hi, true);
-    uniformView.setFloat32(12, centerXSplit.lo, true);
-    uniformView.setFloat32(16, centerYSplit.hi, true);
-    uniformView.setFloat32(20, centerYSplit.lo, true);
-    uniformView.setFloat32(24, zoom, true);
+    uniformView.setFloat32(8, centerX, true);        // For 3D: posX, For 2D: centerX_hi
+    uniformView.setFloat32(12, centerXLo, true);     // For 3D: posZ, For 2D: centerX_lo
+    uniformView.setFloat32(16, centerY, true);       // For 3D: posY, For 2D: centerY_hi
+    uniformView.setFloat32(20, centerYLo, true);     // For 3D: yaw, For 2D: centerY_lo
+    uniformView.setFloat32(24, zoom, true);          // For 3D: pitch, For 2D: zoom
     uniformView.setUint32(28, maxIterations, true);
+    uniformView.setFloat32(32, fieldOfView, true);   // NEW: Field of View
 
     if (uniformBuffer) {
         uniformBuffer.destroy();
     }
     uniformBuffer = device.createBuffer({
-        size: 48,
+        size: 64,  // Increased from 48
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(uniformBuffer, 0, uniformData);
@@ -435,6 +504,7 @@ export async function renderFractal(
 
     const workgroupCountX = Math.ceil(width / 8);
     const workgroupCountY = Math.ceil(height / 8);
+    
     computePass.dispatchWorkgroups(workgroupCountX, workgroupCountY);
     computePass.end();
 
@@ -454,6 +524,11 @@ export async function renderFractal(
     renderPass.end();
 
     device.queue.submit([commandEncoder.finish()]);
+    
+    if (fractalType === 'mandelbulb') {
+        await device.queue.onSubmittedWorkDone();
+        console.log('GPU work complete');
+    }
 }
 
 // Resize canvas

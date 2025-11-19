@@ -105,6 +105,8 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 	public async Task RenderFractalAsync(
 		FractalType fractalType,
 		ViewPort viewport,
+		Camera3D camera3D,
+		bool is3D,
 		int maxIterations,
 		float[] paletteData)
 	{
@@ -113,14 +115,27 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 			return;
 		}
 
+		// For 3D Mandelbulb: pass camera position, orientation, and FOV
+		// For 2D fractals: use ViewPort
+		var centerX = is3D ? camera3D.PositionX : viewport.CenterX;
+		var centerY = is3D ? camera3D.PositionY : viewport.CenterY;
+		var centerXLo = is3D ? camera3D.PositionZ : 0.0;  // Z position for 3D
+		var centerYLo = is3D ? camera3D.Yaw : 0.0;  // Yaw for 3D
+		// For 3D: we need to pass BOTH pitch and FOV, so we use zoom for pitch and maxIterations slot for FOV (temporarily)
+		var zoom = is3D ? camera3D.Pitch : viewport.Zoom;  // Pitch for 3D, zoom for 2D
+		var param7 = is3D ? camera3D.FieldOfView : maxIterations;  // FOV for 3D, maxIterations for 2D
+
 		await _module.InvokeVoidAsync("renderFractal",
 			fractalType.ToString().ToLowerInvariant(),
-			viewport.CenterX,
-			viewport.CenterY,
-			viewport.Zoom,
+			centerX,
+			centerY,
+			centerXLo,
+			centerYLo,
+			zoom,
 			viewport.Width,
 			viewport.Height,
 			maxIterations,
+			param7,  // Pass FOV as extra parameter
 			paletteData);
 	}
 

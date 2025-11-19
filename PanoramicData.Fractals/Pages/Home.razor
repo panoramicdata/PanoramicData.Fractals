@@ -13,7 +13,7 @@
 
 <div class="fractal-container">
 	<canvas id="fractal-canvas" @ref="canvasRef"></canvas>
-	
+
 	<!-- Collapsible Control Panel (Top Right) -->
 	<div class="control-panel @(isControlsExpanded ? "expanded" : "collapsed")">
 		@if (isControlsExpanded)
@@ -22,7 +22,7 @@
 				<button class="panel-toggle" @onclick="ToggleControls" title="Collapse controls">
 					<span class="toggle-icon">×</span>
 				</button>
-				
+
 				<div class="control-group">
 					<label for="fractal-select">Fractal Type</label>
 					<select id="fractal-select" @bind="selectedFractalType" @bind:after="OnFractalTypeChanged">
@@ -32,7 +32,7 @@
 						}
 					</select>
 				</div>
-				
+
 				<div class="control-group">
 					<label for="palette-select">Color Palette</label>
 					<select id="palette-select" @bind="selectedPaletteName" @bind:after="OnPaletteChanged">
@@ -42,13 +42,13 @@
 						}
 					</select>
 				</div>
-				
+
 				<div class="control-group">
 					<button class="reset-button" @onclick="OnResetView">
 						<span class="reset-icon">↺</span> Reset View
 					</button>
 				</div>
-				
+
 				<div class="control-group">
 					<button class="action-button screenshot-button" @onclick="OnCaptureScreenshot">
 						<span class="button-icon">📷</span> Screenshot
@@ -63,7 +63,7 @@
 			</button>
 		}
 	</div>
-	
+
 	@if (!webGPUSupported)
 	{
 		<div class="webgpu-error">
@@ -94,7 +94,7 @@
 	private string selectedPaletteName = "Classic";
 	private bool suppressUrlUpdate = false;
 	private bool isControlsExpanded = true; // Default to expanded
-	
+
 	protected override void OnInitialized()
 	{
 		// Load settings from URL parameters
@@ -110,7 +110,7 @@
 
 			// Initialize WebGPU (this will check support internally)
 			var initialized = await WebGPU.InitializeAsync("fractal-canvas");
-			
+
 			if (!initialized)
 			{
 				webGPUSupported = false;
@@ -121,19 +121,19 @@
 
 			// Subscribe to state changes
 			State.OnStateChanged += OnStateChanged;
-			
+
 			// Set up resize handler
 			dotNetRef = DotNetObjectReference.Create(this);
 			windowEventsModule = await JSRuntime.InvokeAsync<IJSObjectReference>(
 				"import", "./js/window-events.js");
 			await windowEventsModule.InvokeVoidAsync("setupResizeHandler", dotNetRef);
-			
+
 			// Set up pan and zoom interaction
 			await WebGPU.SetupInteractionAsync(dotNetRef);
-			
+
 			// Render initial fractal
 			await RenderCurrentFractal();
-			
+
 			isInitializing = false;
 			StateHasChanged();
 		}
@@ -157,7 +157,7 @@
 		if (queryParams.TryGetValue("palette", out var paletteValue) &&
 			!string.IsNullOrEmpty(paletteValue))
 		{
-			var palette = ColorPalette.AllPalettes.FirstOrDefault(p => 
+			var palette = ColorPalette.AllPalettes.FirstOrDefault(p =>
 				p.Name.Equals(paletteValue, StringComparison.OrdinalIgnoreCase));
 			if (palette != null)
 			{
@@ -207,14 +207,14 @@
 	{
 		// Handle formats like: "0.1+0.3i", "0.1-0.3i", "-0.4+0.6i"
 		complexStr = complexStr.Replace(" ", "").Replace("i", "").ToLower();
-		
+
 		var real = 0.0;
 		var imag = 0.0;
 
 		// Find the last + or - that's not at the beginning
 		var lastPlusIndex = complexStr.LastIndexOf('+');
 		var lastMinusIndex = complexStr.LastIndexOf('-');
-		
+
 		// Skip the first character (could be negative sign for real part)
 		if (lastMinusIndex == 0)
 		{
@@ -250,7 +250,7 @@
 			["palette"] = selectedPaletteName.ToLowerInvariant().Replace(" ", ""),
 			["c"] = FormatComplex(State.ViewPort.CenterX, State.ViewPort.CenterY),
 			["zoom"] = State.ViewPort.Zoom.ToString("G6"),
-			["iter"] = State.MaxIterations.ToString()
+			["iter" ] = State.MaxIterations.ToString()
 		};
 
 		var newUri = QueryHelpers.AddQueryString("/", queryParams);
@@ -270,29 +270,122 @@
 	{
 		// Update canvas size to maintain 1:1 aspect ratio
 		await UpdateCanvasSize();
-		
+
 		// Re-render fractal with new dimensions
 		await RenderCurrentFractal();
-		
+
 		StateHasChanged();
 	}
 
 	[JSInvokable]
 	public async Task OnPan(double deltaX, double deltaY)
 	{
-		// Convert pixel delta to complex plane delta
-		// Account for aspect ratio in the X direction
-		var aspect = (double)canvasWidth / canvasHeight;
-		var scale = 4.0 / State.ViewPort.Zoom;
-		
-		// Negative because moving mouse right should move view left
-		// Apply aspect ratio correction to X movement
-		var deltaReal = -(deltaX / canvasWidth) * scale * aspect;
-		var deltaImag = -(deltaY / canvasHeight) * scale;
-		
-		State.ViewPort.CenterX += deltaReal;
-		State.ViewPort.CenterY += deltaImag;
-		
+		// For 3D Mandelbulb: rotate camera (yaw/pitch)
+		if (State.Is3D)
+		{
+			// Sensitivity scales with FOV (linear) - halved for even slower rotation when zoomed in
+			var sensitivity = 0.0025 * State.Camera3D.FieldOfView;
+
+			// Update yaw (left/right) - REVERSED
+			State.Camera3D.Yaw -= deltaX * sensitivity;
+
+			// Update pitch (up/down), clamped to avoid gimbal lock - INVERTED Y
+			State.Camera3D.Pitch -= deltaY * sensitivity;
+			State.Camera3D.Pitch = Math.Clamp(State.Camera3D.Pitch, -Math.PI / 2 + 0.1, Math.PI / 2 - 0.1);
+		}
+		else
+		{
+			// For 2D fractals: pan the viewport
+			var aspect = (double)canvasWidth / canvasHeight;
+			var scale = 4.0 / State.ViewPort.Zoom;
+			var deltaReal = -(deltaX / canvasWidth) * scale * aspect;
+			var deltaImag = -(deltaY / canvasHeight) * scale;
+
+			State.ViewPort.CenterX += deltaReal;
+			State.ViewPort.CenterY += deltaImag;
+		}
+
+		await RenderCurrentFractal();
+		UpdateUrl();
+	}
+
+	[JSInvokable]
+	public async Task OnCameraPan(double deltaX, double deltaY)
+	{
+		// 3D camera position movement (Shift+drag) - REVERSED X/Y
+		if (!State.Is3D) return;
+
+		// Movement speed scales with FOV^2 for stronger zoom dampening
+		var speed = 0.01 * State.Camera3D.FieldOfView * State.Camera3D.FieldOfView;
+
+		// Calculate camera's local axes from yaw and pitch
+		var (forward, right, up) = GetCameraAxes();
+
+		// Move camera position in screen-space directions - REVERSED
+		// Horizontal drag = move along camera's right vector
+		// Vertical drag = move along camera's up vector
+		State.Camera3D.PositionX -= (deltaX * speed * right.X + deltaY * speed * up.X);
+		State.Camera3D.PositionY -= (deltaX * speed * right.Y + deltaY * speed * up.Y);
+		State.Camera3D.PositionZ -= (deltaX * speed * right.Z + deltaY * speed * up.Z);
+
+		await RenderCurrentFractal();
+		UpdateUrl();
+	}
+
+	[JSInvokable]
+	public async Task OnKeyboardMove(string direction)
+	{
+		// Keyboard camera movement (WASD+QZ+EC)
+		if (!State.Is3D) return;
+
+		// Movement speed scales with FOV^2 for stronger zoom dampening
+		var speed = 0.1 * State.Camera3D.FieldOfView * State.Camera3D.FieldOfView;
+
+		// Calculate camera's local axes
+		var (forward, right, up) = GetCameraAxes();
+
+		switch (direction.ToLower())
+		{
+			case "w": // Forward
+				State.Camera3D.PositionX += forward.X * speed;
+				State.Camera3D.PositionY += forward.Y * speed;
+				State.Camera3D.PositionZ += forward.Z * speed;
+				break;
+			case "s": // Backward
+				State.Camera3D.PositionX -= forward.X * speed;
+				State.Camera3D.PositionY -= forward.Y * speed;
+				State.Camera3D.PositionZ -= forward.Z * speed;
+				break;
+			case "a": // Left
+				State.Camera3D.PositionX -= right.X * speed;
+				State.Camera3D.PositionY -= right.Y * speed;
+				State.Camera3D.PositionZ -= right.Z * speed;
+				break;
+			case "d": // Right
+				State.Camera3D.PositionX += right.X * speed;
+				State.Camera3D.PositionY += right.Y * speed;
+				State.Camera3D.PositionZ += right.Z * speed;
+				break;
+			case "z": // Up (SWAPPED with Q)
+				State.Camera3D.PositionX += up.X * speed;
+				State.Camera3D.PositionY += up.Y * speed;
+				State.Camera3D.PositionZ += up.Z * speed;
+				break;
+			case "q": // Down (SWAPPED with Z)
+				State.Camera3D.PositionX -= up.X * speed;
+				State.Camera3D.PositionY -= up.Y * speed;
+				State.Camera3D.PositionZ -= up.Z * speed;
+				break;
+			case "e": // Zoom in (decrease FOV) - NO LOWER LIMIT for infinite zoom!
+				State.Camera3D.FieldOfView *= 0.9;
+				State.Camera3D.FieldOfView = Math.Max(State.Camera3D.FieldOfView, 1e-10); // Only prevent complete zero
+				break;
+			case "c": // Zoom out (increase FOV) - Reasonable upper limit
+				State.Camera3D.FieldOfView *= 1.1;
+				State.Camera3D.FieldOfView = Math.Min(State.Camera3D.FieldOfView, 3.0);
+				break;
+		}
+
 		await RenderCurrentFractal();
 		UpdateUrl();
 	}
@@ -300,38 +393,83 @@
 	[JSInvokable]
 	public async Task OnZoom(double zoomDelta, double normalizedX, double normalizedY)
 	{
-		// Calculate aspect ratio
-		var aspect = (double)canvasWidth / canvasHeight;
-		
-		// Calculate the point in complex plane where zoom is centered
-		// Apply aspect ratio correction to X coordinate
-		var scale = 4.0 / State.ViewPort.Zoom;
-		var pointReal = State.ViewPort.CenterX + (normalizedX - 0.5) * scale * aspect;
-		var pointImag = State.ViewPort.CenterY + (normalizedY - 0.5) * scale;
-		
-		// Apply zoom
-		State.ViewPort.Zoom *= zoomDelta;
-		
-		// Limit zoom range to what f32 can reasonably handle in shaders
-		// For deeper zooms, we rely on double-double arithmetic
-		State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e10));
-		
-		// Adjust center to keep the zoom point fixed
-		var newScale = 4.0 / State.ViewPort.Zoom;
-		State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale * aspect;
-		State.ViewPort.CenterY = pointImag - (normalizedY - 0.5) * newScale;
-		
+		if (State.Is3D)
+		{
+			// For 3D: adjust field of view - INFINITE ZOOM for fractals!
+			State.Camera3D.FieldOfView *= zoomDelta;
+			State.Camera3D.FieldOfView = Math.Clamp(State.Camera3D.FieldOfView, 1e-10, 3.0);
+		}
+		else
+		{
+			// For 2D fractals: zoom with pivot point
+			var aspect = (double)canvasWidth / canvasHeight;
+			var scale = 4.0 / State.ViewPort.Zoom;
+			var pointReal = State.ViewPort.CenterX + (normalizedX - 0.5) * scale * aspect;
+			var pointImag = State.ViewPort.CenterY + (normalizedY - 0.5) * scale;
+
+			State.ViewPort.Zoom *= zoomDelta;
+			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e10));
+
+			var newScale = 4.0 / State.ViewPort.Zoom;
+			State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale * aspect;
+			State.ViewPort.CenterY = pointImag - (normalizedY - 0.5) * newScale;
+		}
+
 		await RenderCurrentFractal();
 		UpdateUrl();
+	}
+
+	private void ResetView()
+	{
+		if (State.Is3D)
+		{
+			// Reset 3D camera to default position/orientation
+			State.Camera3D.PositionX = 0.0;
+			State.Camera3D.PositionY = 1.0;
+			State.Camera3D.PositionZ = 3.0;
+			State.Camera3D.Yaw = 0.0;
+			State.Camera3D.Pitch = 0.3; // Slight downward angle
+			State.Camera3D.FieldOfView = 1.0;
+		}
+		else
+		{
+			// Reset 2D viewport
+			State.ViewPort.CenterX = 0.0;
+			State.ViewPort.CenterY = 0.0;
+			State.ViewPort.Zoom = 1.0;
+		}
+	}
+
+	/// <summary>
+	/// Calculate camera's local coordinate axes from yaw and pitch
+	/// </summary>
+	private ((double X, double Y, double Z) Forward, (double X, double Y, double Z) Right, (double X, double Y, double Z) Up) GetCameraAxes()
+	{
+		var yaw = State.Camera3D.Yaw;
+		var pitch = State.Camera3D.Pitch;
+
+		// Forward direction (where camera is looking)
+		var forwardX = Math.Sin(yaw) * Math.Cos(pitch);
+		var forwardY = Math.Sin(pitch);
+		var forwardZ = -Math.Cos(yaw) * Math.Cos(pitch);
+
+		// Right direction (perpendicular to forward, in horizontal plane)
+		var rightX = Math.Cos(yaw);
+		var rightY = 0.0;
+		var rightZ = Math.Sin(yaw);
+
+		// Up direction (cross product of right and forward)
+		var upX = rightY * forwardZ - rightZ * forwardY;
+		var upY = rightZ * forwardX - rightX * forwardZ;
+		var upZ = rightX * forwardY - rightY * forwardX;
+
+		return ((forwardX, forwardY, forwardZ), (rightX, rightY, rightZ), (upX, upY, upZ));
 	}
 
 	private async Task OnFractalTypeChanged()
 	{
 		State.CurrentFractal = selectedFractalType;
-		
-		// Reset view for new fractal type
 		ResetView();
-		
 		await RenderCurrentFractal();
 		UpdateUrl();
 	}
@@ -359,20 +497,13 @@
 		var fractalName = State.CurrentFractal.ToString().ToLowerInvariant();
 		var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
 		var filename = $"fractal-{fractalName}-{timestamp}.png";
-		
+
 		await WebGPU.CaptureScreenshotAsync(filename);
 	}
 
 	private void ToggleControls()
 	{
 		isControlsExpanded = !isControlsExpanded;
-	}
-
-	private void ResetView()
-	{
-		State.ViewPort.CenterX = 0.0;
-		State.ViewPort.CenterY = 0.0;
-		State.ViewPort.Zoom = 1.0;
 	}
 
 	private string GetFractalDisplayName(FractalType fractalType) => fractalType switch
@@ -384,28 +515,23 @@
 		FractalType.Tricorn => "Tricorn (Mandelbar)",
 		FractalType.Phoenix => "Phoenix",
 		FractalType.BarnsleyFern => "Barnsley Fern",
+		FractalType.Mandelbulb => "Mandelbulb (3D)",
 		_ => fractalType.ToString()
 	};
 
 	private async Task UpdateCanvasSize()
 	{
-		// Get fullscreen canvas dimensions
 		var (width, height) = await WebGPU.GetCanvasSizeAsync();
-		
 		canvasWidth = width;
 		canvasHeight = height;
-		
 		State.ViewPort.Width = canvasWidth;
 		State.ViewPort.Height = canvasHeight;
-		
 		await WebGPU.ResizeCanvasAsync(canvasWidth, canvasHeight);
 	}
 
 	private async void OnStateChanged()
 	{
-		// Prevent overlapping renders during animation
 		if (State.IsRendering) return;
-		
 		await RenderCurrentFractal();
 		UpdateUrl();
 		StateHasChanged();
@@ -418,13 +544,12 @@
 		try
 		{
 			State.IsRendering = true;
-			
-			// Convert palette to float array
 			var paletteData = GeneratePaletteData(State.CurrentPalette);
-			
 			await WebGPU.RenderFractalAsync(
 				State.CurrentFractal,
 				State.ViewPort,
+				State.Camera3D,
+				State.Is3D,
 				State.MaxIterations,
 				paletteData
 			);
@@ -438,13 +563,12 @@
 	private float[] GeneratePaletteData(ColorPalette palette)
 	{
 		const int paletteSize = 256;
-		var data = new float[paletteSize * 4]; // RGBA
+		var data = new float[paletteSize * 4];
 
 		for (int i = 0; i < paletteSize; i++)
 		{
 			var t = i / (float)(paletteSize - 1);
 			var color = InterpolateColor(palette, t);
-			
 			data[i * 4 + 0] = color.R / 255f;
 			data[i * 4 + 1] = color.G / 255f;
 			data[i * 4 + 2] = color.B / 255f;
@@ -462,7 +586,6 @@
 		if (palette.Colors.Count == 1)
 			return (palette.Colors[0].R, palette.Colors[0].G, palette.Colors[0].B);
 
-		// Find the two colors to interpolate between
 		ColorStop? lower = null;
 		ColorStop? upper = null;
 
@@ -482,7 +605,6 @@
 			return (lastColor.R, lastColor.G, lastColor.B);
 		}
 
-		// Interpolate
 		var range = upper.Position - lower.Position;
 		var localT = range > 0 ? (t - lower.Position) / range : 0;
 
@@ -496,15 +618,14 @@
 	public async ValueTask DisposeAsync()
 	{
 		State.OnStateChanged -= OnStateChanged;
-		
+
 		if (windowEventsModule != null)
 		{
 			await windowEventsModule.InvokeVoidAsync("removeResizeHandler");
 			await windowEventsModule.DisposeAsync();
 		}
-		
+
 		dotNetRef?.Dispose();
-		
 		await WebGPU.DisposeAsync();
 	}
 }

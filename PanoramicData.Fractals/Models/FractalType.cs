@@ -11,5 +11,6 @@ public enum FractalType
 	Newton,
 	Tricorn,
 	Phoenix,
-	BarnsleyFern
+	BarnsleyFern,
+	Mandelbulb  // 3D fractal - Phase 7!
 }

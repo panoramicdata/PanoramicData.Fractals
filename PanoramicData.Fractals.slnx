@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
+    <File Path=".github/copilot-instructions.md" />
     <File Path="LICENSE" />
     <File Path="MASTER_PLAN.md" />
     <File Path="PanoramicData.Fractals.dic" />

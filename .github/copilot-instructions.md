@@ -2,7 +2,7 @@
 
 ## Testing Before Commit
 
-**CRITICAL**: Always test changes before committing to git, especially when:
+**CRITICAL**: Always ask the developer to manually test changes before committing to git, especially when:
 - Modifying file paths or resource loading
 - Changing runtime behavior (async/await, fetch, etc.)
 - Refactoring shader or JavaScript code

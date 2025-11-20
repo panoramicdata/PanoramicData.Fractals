@@ -856,7 +856,7 @@
 	{
 		State.CurrentFractal = selectedFractalType;
 		
-		// Set defaults specific to Mandelbulb
+		// Set defaults specific to Mandelbulb (3D)
 		if (selectedFractalType == FractalType.Mandelbulb)
 		{
 			// Set recommended camera position and orientation
@@ -866,6 +866,10 @@
 			State.Camera3D.Yaw = 0.005;
 			State.Camera3D.Pitch = -0.32;
 			State.Camera3D.FieldOfView = 0.891;
+			
+			// Set iterations to 256 for 3D models (better performance)
+			maxIterations = 256;
+			State.MaxIterations = maxIterations;
 			
 			// Set Psychedelic palette for Mandelbulb
 			var psychedelicPalette = ColorPalette.AllPalettes.FirstOrDefault(p => 
@@ -884,6 +888,10 @@
 		{
 			// Reset to 2D defaults
 			ResetView();
+			
+			// Set iterations to 2048 for 2D fractals (more detail)
+			maxIterations = 2048;
+			State.MaxIterations = maxIterations;
 		}
 		
 		await RenderCurrentFractal();

@@ -69,11 +69,12 @@ const STANDALONE_SHADERS = new Set([
 
 /**
  * Get shader code for a specific fractal
- * @param {string} fractalName - Name of the fractal (e.g., 'mandelbrot', 'landscape')
+ * @param {string} fractalName - Name of the fractal (e.g., 'mandelbrot', 'landscape', 'mandelbulb_raytraced')
  * @returns {Promise<string>} The complete shader code
  */
 export async function getShaderCode(fractalName) {
-	const shaderName = fractalName.toLowerCase();
+	// Normalize the name: replace underscores with hyphens for file lookup
+	const shaderName = fractalName.toLowerCase().replace(/_/g, '-');
 
 	if (STANDALONE_SHADERS.has(shaderName)) {
 		return await loadStandaloneShader(shaderName);

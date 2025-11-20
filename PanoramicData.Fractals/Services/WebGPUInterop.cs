@@ -1,5 +1,6 @@
 using Microsoft.JSInterop;
 using PanoramicData.Fractals.Models;
+using PanoramicData.Fractals.Utilities;
 
 namespace PanoramicData.Fractals.Services;
 
@@ -116,15 +117,43 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 			return;
 		}
 
-		// For 3D Mandelbulb: pass camera position, orientation, and FOV
-		// For 2D fractals: use ViewPort
-		var centerX = is3D ? camera3D.PositionX : viewport.CenterX;
-		var centerY = is3D ? camera3D.PositionY : viewport.CenterY;
-		var centerXLo = is3D ? camera3D.PositionZ : 0.0;  // Z position for 3D
-		var centerYLo = is3D ? camera3D.Yaw : 0.0;  // Yaw for 3D
-		// For 3D: we need to pass BOTH pitch and FOV, so we use zoom for pitch and param7 for FOV
-		var zoom = is3D ? camera3D.Pitch : viewport.Zoom;  // Pitch for 3D, zoom for 2D
-		var param7 = is3D ? camera3D.FieldOfView : maxIterations;  // FOV for 3D, maxIterations for 2D
+		// Split doubles into high/low components for double-double precision
+		float centerX, centerXLo, centerY, centerYLo, zoom, param7;
+
+		if (is3D)
+		{
+			// For 3D: camera position (X, Y, Z), orientation (Yaw, Pitch), and FOV
+			var (posXHi, posXLo) = DoubleDouble.Split(camera3D.PositionX);
+			var (posYHi, posYLo) = DoubleDouble.Split(camera3D.PositionY);
+			var (posZHi, posZLo) = DoubleDouble.Split(camera3D.PositionZ);
+			var (yawHi, yawLo) = DoubleDouble.Split(camera3D.Yaw);
+			var (pitchHi, pitchLo) = DoubleDouble.Split(camera3D.Pitch);
+			
+			centerX = posXHi;      // Camera X position (high)
+			centerXLo = posZHi;    // Camera Z position (high) - reusing centerXLo for Z
+			centerY = posYHi;      // Camera Y position (high)
+			centerYLo = yawHi;     // Yaw (high)
+			zoom = pitchHi;        // Pitch (high)
+			param7 = (float)camera3D.FieldOfView; // FOV (single precision is fine for FOV)
+			
+			// Note: We're only passing the high components for 3D camera
+			// as the precision requirements are lower for camera movement
+			// (you won't zoom in billions of times in 3D space)
+		}
+		else
+		{
+			// For 2D: viewport center and zoom with full double-double precision
+			var (centerXHi, centerXLoVal) = DoubleDouble.Split(viewport.CenterX);
+			var (centerYHi, centerYLoVal) = DoubleDouble.Split(viewport.CenterY);
+			var (zoomHi, zoomLo) = DoubleDouble.Split(viewport.Zoom);
+			
+			centerX = centerXHi;
+			centerXLo = centerXLoVal;
+			centerY = centerYHi;
+			centerYLo = centerYLoVal;
+			zoom = zoomHi;
+			param7 = maxIterations; // For 2D, param7 is maxIterations (not used in shader, but passed for consistency)
+		}
 
 		var fractalName = fractalType.ToString().ToLowerInvariant();
 		if (is3D && renderMode != Models.RenderMode.DistanceEstimation)
@@ -142,7 +171,7 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 			viewport.Width,
 			viewport.Height,
 			maxIterations,
-			param7,  // Pass FOV as extra parameter
+			param7,
 			paletteData);
 	}
 
@@ -193,6 +222,7 @@ public class WebGPUInterop(IJSRuntime jsRuntime) : IAsyncDisposable
 
 		GC.SuppressFinalize(this);
 	}
+	
 	private sealed class CanvasSize
 	{
 		public int Width { get; set; }

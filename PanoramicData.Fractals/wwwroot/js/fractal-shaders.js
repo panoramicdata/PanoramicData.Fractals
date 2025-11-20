@@ -10,7 +10,7 @@ export { shaderCommon } from './shader-common.js';
  * @returns {Promise<string>} The shader code
  */
 async function loadShader(shaderName) {
-	const response = await fetch(`./js/shaders/${shaderName}.wgsl`);
+	const response = await fetch(`./shaders/${shaderName}.wgsl`);
 	if (!response.ok) {
 		throw new Error(`Failed to load shader ${shaderName}: ${response.statusText}`);
 	}
@@ -27,7 +27,7 @@ async function loadCommonShader() {
 		return commonShaderCache;
 	}
 
-	const response = await fetch('./js/shaders/common.wgsl');
+	const response = await fetch('./shaders/common.wgsl');
 	if (!response.ok) {
 		throw new Error(`Failed to load common shader: ${response.statusText}`);
 	}

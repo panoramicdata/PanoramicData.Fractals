@@ -43,6 +43,18 @@
 					</select>
 				</div>
 
+				<div class="control-group">
+					<label for="iterations-input">Max Iterations</label>
+					<input type="number" 
+						   id="iterations-input" 
+						   @bind="maxIterations" 
+						   @bind:after="OnIterationsChanged"
+						   min="1" 
+						   max="10000" 
+						   step="1" 
+						   class="iterations-input" />
+				</div>
+
 				@if (State.Is3D)
 				{
 					<div class="control-group">
@@ -362,6 +374,28 @@
 	.legend-item span {
 		color: rgba(255, 255, 255, 0.9);
 	}
+
+	.iterations-input {
+		width: 100%;
+		padding: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		border-radius: 4px;
+		background: rgba(255, 255, 255, 0.1);
+		color: white;
+		font-size: 14px;
+		font-family: system-ui, -apple-system, sans-serif;
+	}
+
+	.iterations-input:focus {
+		outline: none;
+		border-color: #4CAF50;
+		background: rgba(255, 255, 255, 0.15);
+	}
+
+	.iterations-input::-webkit-inner-spin-button,
+	.iterations-input::-webkit-outer-spin-button {
+		opacity: 1;
+	}
 </style>
 
 @code {
@@ -378,11 +412,15 @@
 	private bool suppressUrlUpdate = false;
 	private bool isControlsExpanded = true; // Default to expanded
 	private bool isHelpVisible = false; // Help overlay visibility
+	private int maxIterations = 2048; // Default to 2048
 
 	protected override void OnInitialized()
 	{
 		// Load settings from URL parameters
 		LoadFromUrlParameters();
+		
+		// Sync with state
+		maxIterations = State.MaxIterations;
 	}
 
 	protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -450,6 +488,14 @@
 			}
 		}
 
+		// Load max iterations
+		if (queryParams.TryGetValue("iter", out var iterValue) &&
+			int.TryParse(iterValue, out var iterations))
+		{
+			maxIterations = Math.Max(10, Math.Min(iterations, 10000));
+			State.MaxIterations = maxIterations;
+		}
+
 		// Load center coordinates (supports complex notation like "0.1+0.3i" or separate x,y)
 		if (queryParams.TryGetValue("c", out var centerValue) && !string.IsNullOrEmpty(centerValue))
 		{
@@ -477,13 +523,6 @@
 			double.TryParse(zoomValue, out var zoom))
 		{
 			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(zoom, 1e10));
-		}
-
-		// Load max iterations
-		if (queryParams.TryGetValue("iter", out var iterValue) &&
-			int.TryParse(iterValue, out var iterations))
-		{
-			State.MaxIterations = Math.Max(10, Math.Min(iterations, 10000));
 		}
 
 		// Load 3D camera parameters
@@ -574,7 +613,7 @@
 	{
 		if (suppressUrlUpdate) return;
 
-		var queryParams = new Dictionary<string, string?>
+		var queryParams = new Dictionary<string, string ?>
 		{
 			["fractal"] = State.CurrentFractal.ToString().ToLowerInvariant(),
 			["palette"] = selectedPaletteName.ToLowerInvariant().Replace(" ", ""),
@@ -860,6 +899,15 @@
 			await RenderCurrentFractal();
 			UpdateUrl();
 		}
+	}
+
+	private async Task OnIterationsChanged()
+	{
+		// Clamp the value to valid range
+		maxIterations = Math.Clamp(maxIterations, 1, 10000);
+		State.MaxIterations = maxIterations;
+		await RenderCurrentFractal();
+		UpdateUrl();
 	}
 
 	private async Task OnRenderModeChanged()

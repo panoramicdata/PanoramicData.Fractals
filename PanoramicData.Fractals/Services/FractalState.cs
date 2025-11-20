@@ -12,7 +12,7 @@ public class FractalState
 	public Models.RenderMode RenderMode { get; set; } = Models.RenderMode.DistanceEstimation;
 	public ViewPort ViewPort { get; set; } = ViewPort.Default;
 	public Camera3D Camera3D { get; set; } = Camera3D.Default;  // For Mandelbulb
-	public int MaxIterations { get; set; } = 256;
+	public int MaxIterations { get; set; } = 2048;
 	public bool IsRendering { get; set; }
 
 	public event Action? OnStateChanged;
@@ -65,7 +65,7 @@ public class FractalState
 	{
 		if (MaxIterations != iterations)
 		{
-			MaxIterations = Math.Clamp(iterations, 64, 2048);
+			MaxIterations = Math.Clamp(iterations, 1, 10000);
 			NotifyStateChanged();
 		}
 	}

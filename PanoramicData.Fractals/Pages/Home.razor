@@ -614,7 +614,8 @@
 		if (queryParams.TryGetValue("zoom", out var zoomValue) &&
 			double.TryParse(zoomValue, out var zoom))
 		{
-			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(zoom, 1e10));
+			// With double-double precision, we can zoom to ~1e14 before precision degrades
+			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(zoom, 1e14));
 		}
 
 		// Load 3D camera parameters
@@ -886,7 +887,9 @@
 			var pointImag = State.ViewPort.CenterY + (normalizedY - 0.5) * scale;
 
 			State.ViewPort.Zoom *= zoomDelta;
-			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e10));
+			// With double-double precision, we can zoom to ~1e14 before precision degrades
+			// That's 100,000x deeper than before!
+			State.ViewPort.Zoom = Math.Max(0.1, Math.Min(State.ViewPort.Zoom, 1e14));
 
 			var newScale = 4.0 / State.ViewPort.Zoom;
 			State.ViewPort.CenterX = pointReal - (normalizedX - 0.5) * newScale * aspect;

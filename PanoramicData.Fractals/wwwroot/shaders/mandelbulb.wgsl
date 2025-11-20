@@ -1,3 +1,20 @@
+// Mandelbulb Distance Estimation - Standalone Shader
+// Struct and bindings
+struct FractalParams {
+    width: u32,
+    height: u32,
+    centerX_hi: f32,
+    centerX_lo: f32,
+    centerY_hi: f32,
+    centerY_lo: f32,
+    zoom: f32,
+    maxIterations: u32,
+    fieldOfView: f32,
+}
+
+@group(0) @binding(0) var outputTexture: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(1) var<uniform> params: FractalParams;
+@group(0) @binding(2) var<storage, read> palette: array<vec4<f32>>;
 
 // Mandelbulb distance estimator
 struct DEResult {

@@ -72,9 +72,9 @@ const STANDALONE_SHADERS = new Set([
 export async function getShaderCode(fractalName) {
 	// Normalize the name: replace underscores with hyphens for file lookup
 	const shaderName = fractalName.toLowerCase().replace(/_/g, '-');
-	
+
 	console.log(`Loading shader: ${fractalName} → ${shaderName} (standalone: ${STANDALONE_SHADERS.has(shaderName)})`);
-	
+
 	if (STANDALONE_SHADERS.has(shaderName)) {
 		return await loadStandaloneShader(shaderName);
 	} else {

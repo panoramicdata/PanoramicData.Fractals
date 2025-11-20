@@ -1,5 +1,3 @@
-// Landscape shader doesn't use palette - it has custom shader structure
-export const landscapeShader = `
 // Landscape-specific shader params (no palette)
 struct FractalParams {
     width: u32,
@@ -37,14 +35,14 @@ fn hash22(p: vec2<f32>) -> vec2<f32> {
 fn noise(p: vec2<f32>) -> f32 {
     let i = floor(p);
     let f = fract(p);
-    
+
     let a = hash21(i);
     let b = hash21(i + vec2<f32>(1.0, 0.0));
     let c = hash21(i + vec2<f32>(0.0, 1.0));
     let d = hash21(i + vec2<f32>(1.0, 1.0));
-    
+
     let u = f * f * (3.0 - 2.0 * f);
-    
+
     return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
 }
 
@@ -53,13 +51,13 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
     var amplitude = 0.5;
     var frequency = 1.0;
     var pp = p;
-    
+
     for (var i = 0; i < octaves; i++) {
         value += amplitude * noise(pp * frequency);
         frequency *= 2.0;
         amplitude *= 0.5;
     }
-    
+
     return value;
 }
 
@@ -68,7 +66,7 @@ fn getTerrainHeight(p: vec2<f32>) -> f32 {
     let mountains = fbm(p * 0.3, 6) * 0.8;
     let hills = fbm(p * 1.5, 4) * 0.3;
     let details = fbm(p * 5.0, 3) * 0.1;
-    
+
     return mountains + hills + details;
 }
 
@@ -77,7 +75,7 @@ fn getTerrainGradient(p: vec2<f32>) -> f32 {
     let h = getTerrainHeight(p);
     let hx = getTerrainHeight(p + vec2<f32>(epsilon, 0.0));
     let hy = getTerrainHeight(p + vec2<f32>(0.0, epsilon));
-    
+
     let grad = vec2<f32>((hx - h) / epsilon, (hy - h) / epsilon);
     return length(grad);
 }
@@ -128,7 +126,7 @@ fn getRiverMask(p: vec2<f32>) -> f32 {
     let riverWidth = 0.08;
     let h = getTerrainHeight(p);
     let heightOk = smoothstep(0.6, 0.3, h);
-    
+
     if (riverNoise < riverWidth && heightOk > 0.3) {
         return (1.0 - (riverNoise / riverWidth)) * heightOk;
     }
@@ -147,15 +145,15 @@ fn getTreeDensity(p: vec2<f32>) -> f32 {
     if (water > 0.3) {
         return 0.0;
     }
-    
+
     let height = getTerrainHeight(p);
     let flatness = getTerrainFlatness(p);
-    
+
     let altitudeFactor = 1.0 - abs(height - 0.7) / 0.7;
     let slopeFactor = mix(0.3, 1.0, flatness);
     let treeDensity = altitudeFactor * slopeFactor;
     let treeNoise = fbm(p * 10.0, 3);
-    
+
     return clamp(treeDensity * treeNoise, 0.0, 1.0);
 }
 
@@ -165,10 +163,10 @@ fn getUrbanDensity(p: vec2<f32>) -> f32 {
     if (water > 0.3) {
         return 0.0;
     }
-    
+
     let centerNoise = fbm(p * 0.08, 3);
     let urbanThreshold = 0.68;
-    
+
     if (centerNoise > urbanThreshold) {
         let centerDist = (centerNoise - urbanThreshold) * 6.0;
         return clamp(centerDist, 0.0, 1.0);
@@ -182,23 +180,23 @@ fn getBuildingMask(p: vec2<f32>) -> f32 {
     if (water > 0.3) {
         return 0.0;
     }
-    
+
     let urbanDensity = getUrbanDensity(p);
     let flatness = getTerrainFlatness(p);
     let height = getTerrainHeight(p);
-    
+
     var buildingProbability = urbanDensity * flatness * 0.6;
-    
+
     if (height > 1.5 || height < 0.2) {
         return 0.0;
     }
-    
+
     let buildingNoise = hash21(floor(p * 5.0));
-    
+
     if (buildingNoise < buildingProbability) {
         return hash21(floor(p * 5.0) + vec2<f32>(1.0, 1.0));
     }
-    
+
     return 0.0;
 }
 
@@ -210,13 +208,13 @@ struct CloudLayer {
 
 fn getCloudLayer(p: vec2<f32>) -> CloudLayer {
     var cloud: CloudLayer;
-    
+
     let cloudNoise = fbm(p * 0.6 + vec2<f32>(50.0, 50.0), 5);
     cloud.coverage = smoothstep(0.4, 0.7, cloudNoise);
-    
+
     let thicknessNoise = fbm(p * 1.2 + vec2<f32>(25.0, 75.0), 3);
     cloud.thickness = smoothstep(0.3, 0.8, thicknessNoise);
-    
+
     return cloud;
 }
 
@@ -225,21 +223,21 @@ fn getCloudLayer(p: vec2<f32>) -> CloudLayer {
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
     let y = global_id.y;
-    
+
     if (x >= params.width || y >= params.height) {
         return;
     }
-    
+
     let aspect = f32(params.width) / f32(params.height);
     let scale = 10.0 / params.zoom;
     let pixel_offset_x = (f32(x) / f32(params.width) - 0.5) * scale * aspect;
     let pixel_offset_y = (f32(y) / f32(params.height) - 0.5) * scale;
-    
+
     let worldPos = vec2<f32>(
         params.centerX_hi + pixel_offset_x,
         params.centerY_hi + pixel_offset_y
     );
-    
+
     // SAMPLE ALL LAYERS
     let terrainHeight = getTerrainHeight(worldPos);
     let flatness = getTerrainFlatness(worldPos);
@@ -249,18 +247,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let buildingMask = getBuildingMask(worldPos);
     let urbanDensity = getUrbanDensity(worldPos);
     let clouds = getCloudLayer(worldPos);
-    
+
     // LAYER COMPOSITING (back to front)
-    
+
     // Start with terrain
     var finalColor = getTerrainColor(terrainHeight, flatness);
-    
+
     // Layer: Trees
     if (treeDensity > 0.3 && waterMask < 0.3 && riverMask < 0.3) {
         let treeColor = vec3<f32>(0.08, 0.4, 0.08);
         finalColor = mix(finalColor, treeColor, treeDensity * 0.8);
     }
-    
+
     // Layer: Water (covers terrain)
     if (waterMask > 0.3) {
         let waterColor = getWaterColor(waterMask);
@@ -269,9 +267,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let riverColor = vec3<f32>(0.2, 0.6, 0.9);
         finalColor = mix(finalColor, riverColor, riverMask);
     }
-    
+
     let isWater = max(waterMask, riverMask);
-    
+
     // Layer: Buildings
     if (buildingMask > 0.0 && isWater < 0.3) {
         let buildingNoise = hash21(floor(worldPos * 5.0));
@@ -282,13 +280,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         );
         finalColor = mix(finalColor, buildingColor, buildingMask * 0.85);
     }
-    
+
     // Layer: Urban density overlay
     if (urbanDensity > 0.1 && isWater < 0.3) {
         let urbanColor = vec3<f32>(0.45, 0.45, 0.45);
         finalColor = mix(finalColor, urbanColor, urbanDensity * 0.25);
     }
-    
+
     // Lighting
     let lightDir = normalize(vec3<f32>(1.0, 1.0, 0.6));
     let epsilon = 0.01;
@@ -299,33 +297,32 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         (terrainHeight - hy) / epsilon,
         1.0
     ));
-    
+
     let lighting = mix(
         max(dot(normal, lightDir), 0.25),
         0.8,
         clamp(isWater, 0.0, 1.0)
     );
     finalColor *= lighting;
-    
+
     // Water shimmer
     if (isWater > 0.3) {
         let shimmer = hash21(worldPos * 50.0) * 0.2;
         finalColor += vec3<f32>(shimmer, shimmer * 1.1, shimmer * 0.9);
     }
-    
+
     // Layer: Clouds (top layer with variable thickness)
     if (clouds.coverage > 0.3) {
         let thinCloudColor = vec3<f32>(1.0, 1.0, 1.0);
         let thickCloudColor = vec3<f32>(0.6, 0.6, 0.65);
         let cloudColor = mix(thinCloudColor, thickCloudColor, clouds.thickness);
-        
+
         let cloudAlpha = clouds.coverage * mix(0.3, 0.7, clouds.thickness);
         finalColor = mix(finalColor, cloudColor, cloudAlpha);
     }
-    
+
     finalColor = clamp(finalColor, vec3<f32>(0.0), vec3<f32>(1.0));
     let color = vec4<f32>(finalColor, 1.0);
-    
+
     textureStore(outputTexture, vec2<i32>(i32(x), i32(y)), color);
 }
-`;

@@ -8,7 +8,7 @@ public class Camera3D
 	/// <summary>
 	/// Camera position in world space - X coordinate
 	/// </summary>
-	public double PositionX { get; set; } = 0.0;
+	public double PositionX { get; set; }
 
 	/// <summary>
 	/// Camera position in world space - Y coordinate
@@ -23,7 +23,7 @@ public class Camera3D
 	/// <summary>
 	/// Yaw - rotation around world Y axis (left/right look) in radians
 	/// </summary>
-	public double Yaw { get; set; } = 0.0;
+	public double Yaw { get; set; }
 
 	/// <summary>
 	/// Pitch - rotation around camera's local X axis (up/down look) in radians

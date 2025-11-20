@@ -1,30 +1,86 @@
 // Re-export shaderCommon from the dedicated module
 export { shaderCommon } from './shader-common.js';
 
-// Import individual fractal shaders
-import { mandelbrotShader } from './shaders/mandelbrot.js';
-import { juliaShader } from './shaders/julia.js';
-import { burningshipShader } from './shaders/burningship.js';
-import { tricornShader } from './shaders/tricorn.js';
-import { newtonShader } from './shaders/newton.js';
-import { phoenixShader } from './shaders/phoenix.js';
-import { barnsleyfernShader } from './shaders/barnsleyfern.js';
-import { mandelbulbShader } from './shaders/mandelbulb.js';
-import { mandelbulbSimpleShadingShader } from './shaders/mandelbulb-simpleshading.js';
-import { mandelbulbRaytracedShader } from './shaders/mandelbulb-raytraced.js';
-import { landscapeShader } from './shaders/landscape.js';
+// Fractal shader loader - loads WGSL files at runtime
+// Shaders are now stored as .wgsl files for proper linting and syntax highlighting
 
-// Export all shaders as a collection
-export const fractalShaders = {
-    mandelbrot: mandelbrotShader,
-    julia: juliaShader,
-    burningship: burningshipShader,
-    tricorn: tricornShader,
-    newton: newtonShader,
-    phoenix: phoenixShader,
-    barnsleyfern: barnsleyfernShader,
-    mandelbulb: mandelbulbShader,
-    mandelbulb_simpleshading: mandelbulbSimpleShadingShader,
-    mandelbulb_raytraced: mandelbulbRaytracedShader,
-    landscape: landscapeShader
-};
+/**
+ * Load a WGSL shader file
+ * @param {string} shaderName - Name of the shader (e.g., 'mandelbrot', 'phoenix')
+ * @returns {Promise<string>} The shader code
+ */
+async function loadShader(shaderName) {
+	const response = await fetch(`./js/shaders/${shaderName}.wgsl`);
+	if (!response.ok) {
+		throw new Error(`Failed to load shader ${shaderName}: ${response.statusText}`);
+	}
+	return await response.text();
+}
+
+/**
+ * Load common shader code
+ * @returns {Promise<string>} The common shader code
+ */
+let commonShaderCache = null;
+async function loadCommonShader() {
+	if (commonShaderCache) {
+		return commonShaderCache;
+	}
+
+	const response = await fetch('./js/shaders/common.wgsl');
+	if (!response.ok) {
+		throw new Error(`Failed to load common shader: ${response.statusText}`);
+	}
+
+	commonShaderCache = await response.text();
+	return commonShaderCache;
+}
+
+/**
+ * Load a shader with common code prepended (for most fractals)
+ * @param {string} shaderName - Name of the shader
+ * @returns {Promise<string>} The combined shader code
+ */
+async function loadCombinedShader(shaderName) {
+	const [common, shader] = await Promise.all([
+		loadCommonShader(),
+		loadShader(shaderName)
+	]);
+
+	return common + '\n\n' + shader;
+}
+
+/**
+ * Load a standalone shader (for landscape, mandelbulb variants)
+ * @param {string} shaderName - Name of the shader
+ * @returns {Promise<string>} The shader code
+ */
+async function loadStandaloneShader(shaderName) {
+	return await loadShader(shaderName);
+}
+
+// Shaders that don't use common.wgsl
+const STANDALONE_SHADERS = new Set([
+	'landscape',
+	'mandelbulb',
+	'mandelbulb-simpleshading',
+	'mandelbulb-raytraced'
+]);
+
+/**
+ * Get shader code for a specific fractal
+ * @param {string} fractalName - Name of the fractal (e.g., 'mandelbrot', 'landscape')
+ * @returns {Promise<string>} The complete shader code
+ */
+export async function getShaderCode(fractalName) {
+	const shaderName = fractalName.toLowerCase();
+
+	if (STANDALONE_SHADERS.has(shaderName)) {
+		return await loadStandaloneShader(shaderName);
+	} else {
+		return await loadCombinedShader(shaderName);
+	}
+}
+
+// Pre-load common shader on module load for better performance
+loadCommonShader().catch(err => console.warn('Failed to pre-load common shader:', err));

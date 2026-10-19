@@ -20,6 +20,10 @@ struct FractalParams {
 // ============================================================================
 
 // Hash and noise functions
+
+// hash21 and hash22 are WGSL ports of hash12 and hash22 from "Hash without Sine"
+// by David Hoskins, https://www.shadertoy.com/view/4djSRW
+// MIT License, Copyright (c) 2014 David Hoskins. See THIRD-PARTY-NOTICES.md.
 fn hash21(p: vec2<f32>) -> f32 {
     var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
     p3 += dot(p3, vec3<f32>(p3.y, p3.z, p3.x) + 33.33);
@@ -32,6 +36,8 @@ fn hash22(p: vec2<f32>) -> vec2<f32> {
     return fract(vec2<f32>((p3.x + p3.y) * p3.z, (p3.x + p3.z) * p3.y));
 }
 
+// 2D value noise in the form popularised by Morgan McGuire,
+// https://www.shadertoy.com/view/4dS3Wd (see THIRD-PARTY-NOTICES.md).
 fn noise(p: vec2<f32>) -> f32 {
     let i = floor(p);
     let f = fract(p);

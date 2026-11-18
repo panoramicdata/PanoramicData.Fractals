@@ -269,3 +269,6 @@ dotnet_diagnostic.CA1848.severity = none
 # Default severity for analyzer diagnostics - use suggestion instead of warning
 # This prevents all analyzer warnings from becoming errors when WarningsAsErrors is enabled
 dotnet_analyzer_diagnostic.severity = suggestion
+
+[*.{js,jsx,ts,tsx,vue,mjs,cjs}]
+end_of_line = lf

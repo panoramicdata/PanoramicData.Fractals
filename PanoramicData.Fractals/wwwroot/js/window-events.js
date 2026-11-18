@@ -9,16 +9,16 @@ export function setupResizeHandler(dotNetHelper) {
 		}
 
 		resizeTimeout = setTimeout(async () => {
-			await dotNetHelper.invokeMethodAsync('OnWindowResized');
+			await dotNetHelper.invokeMethodAsync("OnWindowResized");
 		}, 150); // 150ms debounce
 	};
 
-	window.addEventListener('resize', resizeCallback);
+	window.addEventListener("resize", resizeCallback);
 }
 
 export function removeResizeHandler() {
 	if (resizeCallback) {
-		window.removeEventListener('resize', resizeCallback);
+		window.removeEventListener("resize", resizeCallback);
 		resizeCallback = null;
 	}
 

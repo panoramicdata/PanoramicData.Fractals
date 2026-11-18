@@ -97,7 +97,7 @@ a, .btn-link {
     inset: calc(20vh + 3.25rem) 0 auto 0.2rem;
 }
 
-    .loading-progress-text:after {
+    .loading-progress-text::after {
         content: var(--blazor-load-percentage-text, "Loading");
     }
 
@@ -561,6 +561,7 @@ html, body {
 		opacity: 0;
 		transform: translateX(-20px);
 	}
+
 	to {
 		opacity: 1;
 		transform: translateX(0);

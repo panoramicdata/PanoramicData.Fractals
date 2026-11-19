@@ -9,7 +9,9 @@
 async function loadShader(shaderName) {
 	const response = await fetch(`./shaders/${shaderName}.wgsl`);
 	if (!response.ok) {
-		throw new Error(`Failed to load shader ${shaderName}: ${response.statusText}`);
+		throw new Error(
+			`Failed to load shader ${shaderName}: ${response.statusText}`,
+		);
 	}
 	return await response.text();
 }
@@ -24,7 +26,7 @@ async function loadCommonShader() {
 		return commonShaderCache;
 	}
 
-	const response = await fetch('./shaders/common.wgsl');
+	const response = await fetch("./shaders/common.wgsl");
 	if (!response.ok) {
 		throw new Error(`Failed to load common shader: ${response.statusText}`);
 	}
@@ -41,10 +43,10 @@ async function loadCommonShader() {
 async function loadCombinedShader(shaderName) {
 	const [common, shader] = await Promise.all([
 		loadCommonShader(),
-		loadShader(shaderName)
+		loadShader(shaderName),
 	]);
 
-	return common + '\n\n' + shader;
+	return common + "\n\n" + shader;
 }
 
 /**
@@ -58,10 +60,10 @@ async function loadStandaloneShader(shaderName) {
 
 // Shaders that don't use common.wgsl
 const STANDALONE_SHADERS = new Set([
-	'landscape',
-	'mandelbulb',
-	'mandelbulb-simpleshading',
-	'mandelbulb-raytraced'
+	"landscape",
+	"mandelbulb",
+	"mandelbulb-simpleshading",
+	"mandelbulb-raytraced",
 ]);
 
 /**
@@ -71,9 +73,11 @@ const STANDALONE_SHADERS = new Set([
  */
 export async function getShaderCode(fractalName) {
 	// Normalize the name: replace underscores with hyphens for file lookup
-	const shaderName = fractalName.toLowerCase().replace(/_/g, '-');
+	const shaderName = fractalName.toLowerCase().replace(/_/g, "-");
 
-	console.log(`Loading shader: ${fractalName} → ${shaderName} (standalone: ${STANDALONE_SHADERS.has(shaderName)})`);
+	console.log(
+		`Loading shader: ${fractalName} → ${shaderName} (standalone: ${STANDALONE_SHADERS.has(shaderName)})`,
+	);
 
 	if (STANDALONE_SHADERS.has(shaderName)) {
 		return await loadStandaloneShader(shaderName);
@@ -83,4 +87,6 @@ export async function getShaderCode(fractalName) {
 }
 
 // Pre-load common shader on module load for better performance
-loadCommonShader().catch(err => console.warn('Failed to pre-load common shader:', err));
+loadCommonShader().catch((err) =>
+	console.warn("Failed to pre-load common shader:", err),
+);

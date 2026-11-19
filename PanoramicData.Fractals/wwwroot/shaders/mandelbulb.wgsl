@@ -17,6 +17,10 @@ struct FractalParams {
 @group(0) @binding(2) var<storage, read> palette: array<vec4<f32>>;
 
 // Mandelbulb distance estimator
+// Follows the estimator described by Mikael Hvidtfeldt Christensen in
+// "Distance Estimated 3D Fractals (V): The Mandelbulb & Different DE Approximations",
+// http://blog.hvidtfeldts.net/index.php/2011/09/distance-estimated-3d-fractals-v-the-mandelbulb-different-de-approximations/
+// (see THIRD-PARTY-NOTICES.md).
 struct DEResult {
     distance: f32,
     iterations: u32,

@@ -17,6 +17,10 @@ struct FractalParams {
 @group(0) @binding(2) var<storage, read> palette: array<vec4<f32>>;
 
 // Mandelbulb distance estimator
+// Follows the estimator described by Mikael Hvidtfeldt Christensen in
+// "Distance Estimated 3D Fractals (V): The Mandelbulb & Different DE Approximations",
+// http://blog.hvidtfeldts.net/index.php/2011/09/distance-estimated-3d-fractals-v-the-mandelbulb-different-de-approximations/
+// (see THIRD-PARTY-NOTICES.md).
 struct DEResult {
     distance: f32,
     iterations: u32,
@@ -78,6 +82,9 @@ fn calculateNormal(p: vec3<f32>, power: f32, maxIter: u32) -> vec3<f32> {
 }
 
 // Ambient Occlusion
+// Adapted from calcAO in "Raymarching - Primitives" by Inigo Quilez,
+// https://www.shadertoy.com/view/Xds3zN
+// The MIT License, Copyright (c) 2013 Inigo Quilez. See THIRD-PARTY-NOTICES.md.
 fn calculateAO(p: vec3<f32>, normal: vec3<f32>, power: f32, maxIter: u32) -> f32 {
     var occlusion = 0.0;
     var scale = 1.0;
@@ -93,6 +100,9 @@ fn calculateAO(p: vec3<f32>, normal: vec3<f32>, power: f32, maxIter: u32) -> f32
 }
 
 // Soft shadows
+// Adapted from softshadow in "Raymarching - Primitives" by Inigo Quilez,
+// https://www.shadertoy.com/view/Xds3zN (technique: https://iquilezles.org/articles/rmshadows/)
+// The MIT License, Copyright (c) 2013 Inigo Quilez. See THIRD-PARTY-NOTICES.md.
 fn softShadow(p: vec3<f32>, lightDir: vec3<f32>, power: f32, maxIter: u32) -> f32 {
     var res = 1.0;
     var t = 0.02;

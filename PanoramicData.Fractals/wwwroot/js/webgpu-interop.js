@@ -445,7 +445,7 @@ async function createComputePipeline(fractalType) {
 		console.log(`Pipeline created successfully for ${fractalType}`);
 		return pipeline;
 	} catch (error) {
-		console.error(`Failed to create pipeline for ${fractalType}:`, error);
+		console.error("Failed to create pipeline for %s:", fractalType, error);
 		console.error("Error details:", error.message);
 		return null;
 	}
